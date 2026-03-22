@@ -116,7 +116,7 @@ def click(x, y, button='left', double=False):
     _run_ydotool(click_args)
 
 
-def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left'):
+def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=False):
     """Click at the center of a ref's bounding box.
 
     Args:
@@ -124,6 +124,7 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left'):
         ref_cache: Dict mapping ref_id -> {role, name, bbox}, or path to cache file.
         window_offset: (x, y) offset of the window on screen.
         button: 'left', 'right', or 'middle'.
+        double: If True, double-click.
 
     Raises:
         KeyError: If ref_id not in cache.
@@ -146,7 +147,7 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left'):
     screen_x = window_offset[0] + center[0]
     screen_y = window_offset[1] + center[1]
 
-    click(screen_x, screen_y, button=button)
+    click(screen_x, screen_y, button=button, double=double)
 
 
 def type_text(text, delay_ms=None):
