@@ -16,6 +16,9 @@ def bbox_center(bbox):
     Center = (x + w//2, y + h//2).
     Returns None for INT_MIN bboxes with negative dimensions.
     """
+    if not isinstance(bbox, dict):
+        return None
+
     x = bbox.get('x', 0)
     y = bbox.get('y', 0)
     w = bbox.get('w', 0)
@@ -23,7 +26,9 @@ def bbox_center(bbox):
 
     if x == INT_MIN or y == INT_MIN:
         return None
-    if w < 0 or h < 0:
+    if w == INT_MIN or h == INT_MIN:
+        return None
+    if w <= 0 or h <= 0:
         return None
 
     return (x + w // 2, y + h // 2)
@@ -36,8 +41,11 @@ def save_ref_cache(cache, path):
 
 
 def load_ref_cache(path):
-    """Load ref cache from JSON file. Returns {} if file doesn't exist."""
+    """Load ref cache from JSON file. Returns {} if file doesn't exist or is invalid."""
     if not os.path.exists(path):
         return {}
-    with open(path) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        return {}

@@ -588,20 +588,16 @@ class TestRefLookup:
         assert cy == 215
 
     def test_bbox_center_zero_size(self):
-        """Zero-size bbox returns the origin point."""
+        """Zero-size bbox returns None (invisible element)."""
         from tine.refs import bbox_center
         bbox = {'x': 50, 'y': 60, 'w': 0, 'h': 0}
-        cx, cy = bbox_center(bbox)
-        assert cx == 50
-        assert cy == 60
+        assert bbox_center(bbox) is None
 
     def test_bbox_center_zero_height(self):
-        """Zero-height element at valid position — center still computable."""
+        """Zero-height element returns None (degenerate bbox)."""
         from tine.refs import bbox_center
         bbox = {'x': 100, 'y': 200, 'w': 245, 'h': 0}
-        cx, cy = bbox_center(bbox)
-        assert cx == 222  # 100 + 245//2
-        assert cy == 200
+        assert bbox_center(bbox) is None
 
     def test_bbox_center_negative_dimensions(self):
         """INT_MIN bboxes with negative w/h should not produce valid centers.
@@ -616,6 +612,34 @@ class TestRefLookup:
             assert result is None, f"Garbage bbox returned {result}, expected None or raise"
         except (ValueError, TypeError):
             pass  # raising is acceptable
+
+    def test_bbox_center_int_min_width_height(self):
+        """INT_MIN in w or h should return None, not garbage coordinates."""
+        from tine.refs import bbox_center, INT_MIN
+        assert bbox_center({'x': 0, 'y': 0, 'w': INT_MIN, 'h': 50}) is None
+        assert bbox_center({'x': 0, 'y': 0, 'w': 50, 'h': INT_MIN}) is None
+        assert bbox_center({'x': 0, 'y': 0, 'w': INT_MIN, 'h': INT_MIN}) is None
+
+    def test_bbox_center_none_input(self):
+        """bbox_center(None) returns None, not AttributeError."""
+        from tine.refs import bbox_center
+        assert bbox_center(None) is None
+
+    def test_load_ref_cache_corrupt_json(self, tmp_path):
+        """load_ref_cache returns {} for corrupt JSON files."""
+        from tine.refs import load_ref_cache
+        path = str(tmp_path / 'corrupt.json')
+        with open(path, 'w') as f:
+            f.write('{corrupt[')
+        assert load_ref_cache(path) == {}
+
+    def test_load_ref_cache_empty_file(self, tmp_path):
+        """load_ref_cache returns {} for empty files."""
+        from tine.refs import load_ref_cache
+        path = str(tmp_path / 'empty.json')
+        with open(path, 'w') as f:
+            pass
+        assert load_ref_cache(path) == {}
 
 
 # ===========================================================================

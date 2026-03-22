@@ -67,8 +67,8 @@ def _is_valid_ref_bbox(bbox):
     x = bbox.get('x', 0)
     y = bbox.get('y', 0)
 
-    # Negative dimensions — bbox_center returns None for these
-    if w < 0 or h < 0:
+    # Zero or negative dimensions — bbox_center returns None for these
+    if w <= 0 or h <= 0:
         return False
 
     # Garbage: absurdly large dimensions
@@ -77,6 +77,9 @@ def _is_valid_ref_bbox(bbox):
 
     # Any INT_MIN coordinate — bbox_center returns None for these
     if x == INT_MIN or y == INT_MIN:
+        return False
+
+    if w == INT_MIN or h == INT_MIN:
         return False
 
     return True
