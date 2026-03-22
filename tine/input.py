@@ -84,6 +84,10 @@ def move(x, y):
         ValueError: If coordinates are negative.
         RuntimeError: If ydotool fails.
     """
+    if not isinstance(x, (int, float)):
+        raise TypeError(f'x must be numeric, got {type(x).__name__}')
+    if not isinstance(y, (int, float)):
+        raise TypeError(f'y must be numeric, got {type(y).__name__}')
     x, y = int(x), int(y)
     if x < 0 or y < 0:
         raise ValueError(f'Coordinates must be non-negative: ({x}, {y})')

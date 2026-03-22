@@ -108,9 +108,6 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
     Returns:
         Path to the annotated image.
     """
-    if scale <= 0:
-        raise ValueError(f'Scale must be positive, got {scale}')
-
     if output_path is None:
         output_path = image_path
 
@@ -127,6 +124,9 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
             font = ImageFont.load_default()
 
     for ref_id, ref_data in ref_cache.items():
+        # Skip non-dict entries (e.g. _app metadata key)
+        if not isinstance(ref_data, dict):
+            continue
         bbox = ref_data.get('bbox', {})
         center = bbox_center(bbox)
         if center is None:
@@ -141,14 +141,20 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
             continue
 
         # Scale logical coords to physical pixels
-        px = int(x * scale)
-        py = int(y * scale)
-        pw = int(w * scale)
-        ph = int(h * scale)
+        try:
+            px = int(x * scale)
+            py = int(y * scale)
+            pw = int(w * scale)
+            ph = int(h * scale)
+        except (OverflowError, ValueError):
+            continue
 
         # Draw bounding box rectangle
         outline_color = (255, 0, 0)
-        draw.rectangle([px, py, px + pw, py + ph], outline=outline_color, width=2)
+        try:
+            draw.rectangle([px, py, px + pw, py + ph], outline=outline_color, width=2)
+        except (OverflowError, SystemError, ValueError):
+            continue
 
         # Draw ref number label
         ref_num = ref_id.replace('ref_', '')
@@ -161,9 +167,12 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
         label_x = px
         label_y = py - label_h if py - label_h >= 0 else py
 
-        draw.rectangle([label_x, label_y, label_x + label_w, label_y + label_h],
-                       fill=(255, 0, 0))
-        draw.text((label_x + 2, label_y + 2), label, fill=(255, 255, 255), font=font)
+        try:
+            draw.rectangle([label_x, label_y, label_x + label_w, label_y + label_h],
+                           fill=(255, 0, 0))
+            draw.text((label_x + 2, label_y + 2), label, fill=(255, 255, 255), font=font)
+        except (OverflowError, SystemError, ValueError):
+            pass
 
     img.save(output_path)
     return output_path
