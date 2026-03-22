@@ -33,7 +33,10 @@ def _walk_atspi(app=None):
     cmd = [sys.executable, '-m', 'tine.atspi_walker']
     if app:
         cmd.append(app)
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError('AT-SPI2 walker timed out after 30s')
     if result.returncode != 0:
         raise RuntimeError(f'AT-SPI2 walker failed: {result.stderr.strip()}')
     return json.loads(result.stdout)
@@ -77,9 +80,11 @@ def _resolve_window_offset(app_name):
 
 
 def _focus_window(window):
-    """Raise and focus a window. Placeholder for actual implementation."""
-    # Will use gdbus/wmctrl/xdotool to actually focus
-    pass
+    """Raise and focus a window via GNOME Shell D-Bus."""
+    # TODO: implement via gdbus call to org.gnome.Shell to activate window
+    title = window.get('title', '?')
+    print(f'Warning: focus not yet implemented (would focus "{title}")',
+          file=sys.stderr)
 
 
 def _cmd_tree(args):
@@ -221,11 +226,16 @@ def _cmd_describe(args):
         scale=args.scale,
     )
 
+    # Format output first, before mutating ref_cache with _app
+    output = tine.describe.format_for_agent(result)
+
     # Save ref cache with _app metadata
     ref_cache = result.get('ref_cache', {})
     tree_text = result.get('tree', '')
 
-    # Extract app name from tree text (first line: "application 'Name'")
+    # Extract app name from tree text (first line: "application 'Name'").
+    # This is coupled to format_tree output — when describe() returns structured
+    # data (post-RSP A integration), extract from the dict directly instead.
     app_name = ''
     if tree_text:
         m = re.match(r"application\s+'([^']*)'", tree_text)
@@ -234,7 +244,6 @@ def _cmd_describe(args):
     ref_cache['_app'] = app_name
     tine.refs.save_ref_cache(ref_cache, _ref_cache_path())
 
-    output = tine.describe.format_for_agent(result)
     print(output)
 
 
@@ -258,6 +267,7 @@ def main(argv=None):
     click_parser = subparsers.add_parser('click', help='Click by ref or coordinates')
     click_parser.add_argument('target', help='ref_N or x,y')
     click_parser.add_argument('--button', default='left',
+                              choices=['left', 'right', 'middle'],
                               help='Mouse button: left, right, middle')
     click_parser.add_argument('--double', action='store_true',
                               help='Double click')

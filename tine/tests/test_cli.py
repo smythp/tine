@@ -860,7 +860,8 @@ class TestWindowOffsetResolution:
 
         click_ref_calls = []
 
-        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left'):
+        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0),
+                           button='left', double=False):
             click_ref_calls.append({'window_offset': window_offset})
 
         import tine.input
@@ -882,7 +883,8 @@ class TestWindowOffsetResolution:
 
         click_ref_calls = []
 
-        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left'):
+        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0),
+                           button='left', double=False):
             click_ref_calls.append({'window_offset': window_offset})
 
         import tine.input
@@ -904,7 +906,8 @@ class TestWindowOffsetResolution:
 
         click_ref_calls = []
 
-        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left'):
+        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0),
+                           button='left', double=False):
             click_ref_calls.append({'window_offset': window_offset})
 
         import tine.input
