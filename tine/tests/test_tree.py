@@ -845,6 +845,19 @@ class TestEdgeCases:
         assert result['children'][0]['role'] == 'button'
         assert result['children'][0]['name'] == 'Deep'
 
+    def test_collapsible_root_node(self):
+        """When the root itself is an unnamed collapsible node (no parent to
+        promote into), the root should be replaced by its children if it has
+        one child, or kept as-is if it has multiple children."""
+        from tine.tree import collapse_containers
+        # Single child: root is replaced
+        tree = make_node('panel', '', children=[
+            make_node('button', 'OK', bbox={'x': 10, 'y': 10, 'w': 80, 'h': 30}),
+        ])
+        result = collapse_containers(tree)
+        assert result['role'] == 'button'
+        assert result['name'] == 'OK'
+
     def test_nautilus_fixture_loads_and_processes(self, nautilus_tree):
         """Nautilus fixture should process without errors and produce refs."""
         from tine.tree import collapse_containers, assign_refs, format_tree
