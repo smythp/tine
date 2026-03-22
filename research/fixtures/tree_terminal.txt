@@ -1,0 +1,86 @@
+application "org.gnome.Terminal"
+  frame "patrick@archgnome:~" [0,0 788x581] {enabled,resizable,sensitive,showing,visible}
+    panel [26,23 736x47] {enabled,sensitive,showing,visible}
+      filler [715,23 41x46] {enabled,horizontal,sensitive,showing,visible}
+        separator [715,23 1x46] {enabled,sensitive,showing,vertical,visible}
+        button "Close" [722,31 34x30] {enabled,sensitive,showing,visible} actions=[click]
+      button "Find" [631,23 36x46] {enabled,focusable,sensitive,showing,visible} actions=[click]
+      toggle button "Menu" [673,23 36x46] {enabled,focusable,sensitive,showing,visible} actions=[click]
+      filler [300,36 187x19] {enabled,sensitive,showing,vertical,visible}
+        label "patrick@archgnome:~" [300,36 187x19] {enabled,multi-line,sensitive,showing,visible}
+        label [-2147483648,-2147483648 1x1] {enabled,multi-line,sensitive}
+      filler [32,23 36x46] {enabled,horizontal,sensitive,showing,visible}
+        button "New Tab" [32,23 36x46] {enabled,focusable,sensitive,showing,visible} actions=[click]
+        toggle button "Profiles" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive} actions=[click]
+    filler [26,70 736x482] {enabled,sensitive,showing,vertical,visible}
+      menu bar [-2147483648,-2147483648 1x1] {enabled,sensitive}
+        menu "File" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "New Terminal" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          separator [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible}
+          menu item "Close Tab" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Close Window" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+        menu "Edit" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Copy" [-2147483648,-2147483648 1x1] {selectable,visible}
+          menu item "Copy as HTML" [-2147483648,-2147483648 1x1] {selectable,visible}
+          menu item "Paste" [-2147483648,-2147483648 1x1] {selectable,visible}
+          separator [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible}
+          menu item "Select All" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          separator [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible}
+          menu item "Preferences" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+        menu "View" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          check menu item "Show Menubar" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          check menu item "Full Screen" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          separator [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible}
+          menu item "Zoom In" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Normal Size" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Zoom Out" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+        menu "Search" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Find…" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Find Next" [-2147483648,-2147483648 1x1] {selectable,visible}
+          menu item "Find Previous" [-2147483648,-2147483648 1x1] {selectable,visible}
+          menu item "Clear Highlight" [-2147483648,-2147483648 1x1] {selectable,visible}
+        menu "Terminal" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          check menu item "Read-Only" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          separator [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible}
+          menu item "Reset" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Reset and Clear" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          separator [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible}
+          menu item "1. 80×24" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "2. 80×43" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "3. 132×24" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "4. 132×43" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+        menu "Help" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "Contents" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+          menu item "About" [-2147483648,-2147483648 1x1] {enabled,selectable,sensitive,visible} actions=[click]
+      page tab list [26,70 736x482] {enabled,sensitive,showing,visible}
+        page tab [-1,-1 -1x-1] {enabled,selectable,selected,showing,visible}
+          panel [26,70 736x482] {enabled,sensitive,showing,visible}
+            filler [26,70 736x482] {enabled,horizontal,sensitive,showing,visible}
+              terminal "Terminal" [26,70 722x482] {enabled,focusable,sensitive,showing,visible} actions=[menu]
+              scroll bar [748,70 14x482] {enabled,sensitive,showing,vertical,visible}
+    panel [-2147483648,-2147483648 1x1] {enabled,modal,sensitive}
+      panel [-2147483648,-2147483648 1x1] {enabled,sensitive,visible}
+        filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+          filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+            filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+              filler [-2147483648,-2147483648 1x1] {enabled,horizontal,sensitive,visible}
+                button "Zoom Out" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+                button "100%" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+                button "Zoom In" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+            filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+              filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+                button "New Window" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+                button "Full Screen" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+            filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+              separator [-2147483648,-2147483648 1x1] {enabled,horizontal,sensitive,visible}
+              filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+                check box "Read-Only" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+                filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+                  filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+                button "Advanced" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+            filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+              separator [-2147483648,-2147483648 1x1] {enabled,horizontal,sensitive,visible}
+              filler [-2147483648,-2147483648 1x1] {enabled,sensitive,vertical,visible}
+                button "Preferences" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+                button "Help" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]
+                button "About" [-2147483648,-2147483648 1x1] {enabled,focusable,sensitive,visible} actions=[click]

@@ -1,0 +1,187 @@
+application "gnome-control-center"
+  frame "Settings" [0,0 980x640] {sensitive,showing,visible} actions=[window.close,window.minimize,window.toggle-maximized,default.activate]
+    panel [0,0 980x640] {sensitive,showing,visible}
+      panel [0,0 980x640] {sensitive,showing,visible}
+        panel [0,0 980x640] {sensitive,showing,visible}
+          grouping [0,0 980x640] {sensitive,showing,visible} actions=[navigation.pop]
+            panel [0,0 245x640] {sensitive,showing,visible}
+              grouping "Settings" [0,0 245x640] {sensitive,showing,visible}
+                grouping [0,0 245x640] {sensitive,showing,visible}
+                  scroll pane [0,0 245x594] {focusable,sensitive,showing,visible}
+                    panel [0,0 245x594] {sensitive,showing,visible}
+                      panel [0,0 245x1009] {sensitive,showing,visible}
+                        grouping [0,0 245x1009] {sensitive,showing,visible}
+                          panel [0,0 245x1009] {sensitive,showing,visible}
+                            list "Settings categories" [0,0 245x1009] {focusable,sensitive,showing,visible}
+                              button "Wi-Fi" [0,0 233x43] {focusable,selectable,selected,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Wi-Fi" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Network" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Network" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Bluetooth" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Bluetooth" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Displays" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Displays" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Sound" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Sound" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Power" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Power" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Multitasking" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Multitasking" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Appearance" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Appearance" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Apps" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Apps" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Notifications" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Notifications" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Search" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Search" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Online Accounts" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Online Accounts" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Sharing" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Sharing" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Wellbeing" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Wellbeing" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Mouse & Touchpad" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Mouse & Touchpad" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Keyboard" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Keyboard" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Color Management" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Color Management" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Printers" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Printers" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Accessibility" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Accessibility" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "Privacy & Security" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "Privacy & Security" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              button "System" [0,0 233x43] {focusable,selectable,sensitive,showing,visible}
+                                panel [0,0 205x19] {horizontal,sensitive,showing,visible}
+                                  label "System" [0,0 177x19] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              separator [0,0 233x1] {horizontal,sensitive,showing,visible}
+                              separator [0,0 233x1] {horizontal,sensitive,showing,visible}
+                              separator [0,0 233x1] {horizontal,sensitive,showing,visible}
+                              separator [0,0 233x1] {horizontal,sensitive,showing,visible}
+                          panel [0,0 1401416896x32509] {sensitive,showing,visible}
+                    scroll bar [0,0 11x594] {sensitive,showing,vertical,visible}
+                      panel [0,0 11x594] {sensitive,showing,vertical,visible}
+                  grouping [0,0 245x46] {sensitive,showing,visible}
+                    panel [0,0 245x46] {sensitive,showing,visible}
+                      panel [0,0 245x46] {sensitive,showing,vertical,visible}
+                        grouping [0,0 247x40] {sensitive,showing,visible}
+                          panel [0,0 247x40] {sensitive,showing,visible}
+                            panel [0,0 247x40] {sensitive,showing,visible}
+                              panel [0,0 40x34] {sensitive,showing,visible}
+                                panel [0,0 34x34] {horizontal,sensitive,showing,visible}
+                                  toggle button "Search" [0,0 34x34] {focusable,sensitive,showing,visible} actions=[click]
+                              panel [0,0 84x34] {sensitive,showing,visible}
+                                label "Settings" [0,0 84x18] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              panel [0,0 40x34] {sensitive,showing,visible}
+                                panel [0,0 34x34] {horizontal,sensitive,showing,visible}
+                                  button "Main Menu" [0,0 34x34] {sensitive,showing,visible}
+                                    toggle button "Main Menu" [0,0 34x34] {focusable,sensitive,showing,visible,has-popup} actions=[click]
+                                      panel [0,0 16x24] {horizontal,sensitive,showing,visible}
+                        form [0,0 245x0] {sensitive,showing,visible}
+                          grouping [0,0 245x0] {sensitive,showing,visible}
+                  grouping [0,0 245x0] {sensitive,showing,visible}
+                    panel [0,0 245x0] {sensitive,showing,visible}
+                      panel [0,0 245x0] {sensitive,showing,vertical,visible}
+            panel [0,0 735x640] {sensitive,showing,visible}
+              grouping "Wi-Fi" [0,0 735x640] {sensitive,showing,visible}
+                grouping [0,0 735x640] {sensitive,showing,visible}
+                  grouping [0,0 735x594] {sensitive,showing,visible}
+                    scroll pane [0,0 735x594] {focusable,sensitive,showing,visible}
+                      panel [0,0 735x594] {sensitive,showing,visible}
+                        grouping [0,0 735x2049] {sensitive,showing,visible}
+                          panel [0,0 558x2001] {sensitive,showing,vertical,visible}
+                            grouping [0,0 558x164] {sensitive,showing,visible}
+                              panel [0,0 558x164] {sensitive,showing,vertical,visible}
+                                panel [0,0 558x164] {sensitive,showing,vertical,visible}
+                                  grouping [0,0 558x164] {sensitive,showing,visible}
+                                    panel [0,0 558x164] {sensitive,showing,visible}
+                                      grouping [0,0 558x164] {sensitive,showing,visible}
+                                        panel [0,0 558x164] {sensitive,showing,vertical,visible}
+                                          panel [0,0 558x164] {sensitive,showing,vertical,visible}
+                                            list [0,0 558x164] {focusable,sensitive,showing,visible}
+                                              check box "Wi-Fi" [0,0 558x55] {checked,focusable,sensitive,showing,visible,checkable}
+                                                panel [0,0 530x50] {horizontal,sensitive,showing,visible}
+                                                  panel [0,0 478x18] {sensitive,showing,vertical,visible}
+                                                  panel [0,0 46x50] {horizontal,sensitive,showing,visible}
+                                              button "Connect to Hidden Network…" [0,0 558x55] {focusable,sensitive,showing,visible}
+                                                panel [0,0 530x50] {horizontal,sensitive,showing,visible}
+                                                  panel [0,0 502x18] {sensitive,showing,vertical,visible}
+                                                  panel [0,0 22x50] {horizontal,sensitive,showing,visible}
+                                              button "Turn On Wi-Fi Hotspot…" [0,0 558x54] {focusable,showing,visible}
+                                                panel [0,0 530x50] {horizontal,sensitive,showing,visible}
+                                                  panel [0,0 502x18] {sensitive,showing,vertical,visible}
+                                                  panel [0,0 22x50] {horizontal,sensitive,showing,visible}
+                            grouping [0,0 558x54] {sensitive,showing,visible}
+                              panel [0,0 558x54] {sensitive,showing,vertical,visible}
+                                panel [0,0 558x54] {sensitive,showing,vertical,visible}
+                                  list [0,0 558x54] {focusable,sensitive,showing,visible}
+                                    check box "Airplane Mode" [0,0 558x54] {focusable,sensitive,showing,visible,checkable}
+                                      panel [0,0 530x50] {horizontal,sensitive,showing,visible}
+                                        panel [0,0 478x36] {sensitive,showing,vertical,visible}
+                                          label "Airplane Mode" [0,0 478x18] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                                          label "Disables Wi-Fi, Bluetooth and mobile broadband" [0,0 478x15] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                                        panel [0,0 46x50] {horizontal,sensitive,showing,visible}
+                                          check box "Airplane Mode" [0,0 46x26] {focusable,sensitive,showing,visible,checkable} actions=[toggle]
+                            grouping [0,0 558x1735] {sensitive,showing,visible}
+                              panel [0,0 558x1735] {sensitive,showing,vertical,visible}
+                                panel [0,0 558x1735] {sensitive,showing,vertical,visible}
+                                  grouping [0,0 558x1735] {sensitive,showing,visible}
+                                    panel [0,0 1401416896x32509] {sensitive,showing,visible}
+                                    panel [0,0 1401416896x32509] {sensitive,showing,visible}
+                                    panel [0,0 558x1735] {sensitive,showing,visible}
+                                      panel [0,0 558x1735] {sensitive,showing,vertical,visible}
+                                        panel [0,0 145x18] {horizontal,sensitive,showing,visible}
+                                          label "Visible Networks" [0,0 123x18] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                                          progress bar [0,0 16x18] {busy,sensitive,showing,visible}
+                                        grouping [0,0 558x1705] {sensitive,showing,visible}
+                                          panel "Intel Comet Lake PCH-LP CNVi AX201 160MHz 2x2" [0,0 558x1705] {sensitive,showing,visible}
+                                            panel [0,0 558x1705] {sensitive,showing,visible}
+                                              grouping [0,0 558x1705] {sensitive,showing,visible}
+                                                panel [0,0 558x1705] {sensitive,showing,visible}
+                                                  panel [0,0 558x1705] {sensitive,showing,vertical,visible}
+                                                panel [0,0 1401416896x32509] {sensitive,showing,visible}
+                                    panel [0,0 1401416896x32509] {sensitive,showing,visible}
+                      scroll bar [0,0 11x594] {sensitive,showing,vertical,visible}
+                        panel [0,0 11x594] {sensitive,showing,vertical,visible}
+                  grouping [0,0 735x46] {sensitive,showing,visible}
+                    panel [0,0 735x46] {sensitive,showing,visible}
+                      panel [0,0 735x46] {sensitive,showing,vertical,visible}
+                        grouping [0,0 737x46] {sensitive,showing,visible}
+                          panel [0,0 737x46] {sensitive,showing,visible}
+                            panel [0,0 737x46] {sensitive,showing,visible}
+                              panel [0,0 0x34] {sensitive,showing,visible}
+                              panel [0,0 74x34] {sensitive,showing,visible}
+                                grouping [0,0 74x34] {sensitive,showing,visible}
+                                  panel [0,0 74x46] {sensitive,showing,visible}
+                                    panel [0,0 74x46] {sensitive,showing,visible}
+                                      panel [0,0 74x18] {sensitive,showing,vertical,visible}
+                                        label "Wi-Fi" [0,0 74x18] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                              panel [0,0 40x34] {sensitive,showing,visible}
+                                panel [0,0 34x34] {horizontal,sensitive,showing,visible}
+                                  grouping [0,0 34x34] {sensitive,showing,visible}
+                                    button "Close" [0,0 34x34] {focusable,sensitive,showing,visible} actions=[click]
+                  grouping [0,0 735x0] {sensitive,showing,visible}
+                    panel [0,0 735x0] {sensitive,showing,visible}
+                      panel [0,0 735x0] {sensitive,showing,vertical,visible}

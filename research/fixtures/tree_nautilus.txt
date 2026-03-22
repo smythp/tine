@@ -1,0 +1,166 @@
+application "org.gnome.Nautilus"
+  frame "Home" [0,0 890x550] {sensitive,showing,visible} actions=[slot.reload,view.create-link-shortcut,view.properties,default.activate,view.open-scripts-folder,slot.files-view-mode-toggle,win.restore-tab,view.zoom-in,view.show-hidden-files,view.select-all,view.popup-menu,view.select-pattern,view.extension_extensions_0_TerminalNautilus%3AOpenFolderLocal,window.toggle-maximized,slot.search-visible,view.open-current-directory-with-other-application,view.invert-selection,view.zoom-out,view.current-directory-properties,win.tab-move-new-window,slot.up,window.minimize,win.close-other-tabs,slot.search-global,view.send-email,win.current-location-menu,win.show-help-overlay,win.go-home,view.new-folder,view.paste_accel,win.tab-move-right,view.current-directory-console,win.close-current-view,window.close,win.tab-move-left,win.new-tab,slot.down,view.copy-current-location,slot.focus-search]
+    panel [0,0 890x550] {sensitive,showing,visible}
+      panel [0,0 890x550] {sensitive,showing,visible}
+        panel [0,0 890x550] {sensitive,showing,visible}
+          panel [0,0 890x550] {sensitive,showing,visible}
+            grouping [0,0 890x550] {sensitive,showing,visible}
+              grouping [0,0 890x550] {sensitive,showing,visible}
+                panel [0,0 710x550] {sensitive,showing,visible}
+                  grouping [0,0 710x550] {sensitive,showing,visible}
+                    grouping [0,0 710x504] {sensitive,showing,visible}
+                      panel "Home" [0,0 710x504] {sensitive,showing,visible}
+                        panel [0,0 710x504] {sensitive,showing,visible}
+                          panel [0,0 710x504] {sensitive,showing,visible} actions=[slot.focus-search,slot.up,slot.files-view-mode-toggle,slot.search-visible,slot.down,slot.reload,slot.search-global]
+                            grouping [0,0 710x504] {sensitive,showing,visible}
+                              panel [0,0 710x504] {sensitive,showing,visible}
+                                panel [0,0 710x504] {sensitive,showing,vertical,visible}
+                                  panel [0,0 710x0] {sensitive,showing,vertical,visible}
+                                  grouping [0,0 710x0] {sensitive,showing,visible}
+                                    grouping [0,0 710x0] {sensitive,showing,visible}
+                                  panel [0,0 710x504] {sensitive,showing,visible} actions=[view.create-link-shortcut,view.properties,view.open-scripts-folder,view.show-hidden-files,view.select-pattern,view.zoom-in,view.select-all,view.popup-menu,view.extension_extensions_0_TerminalNautilus%3AOpenFolderLocal,view.zoom-out,view.open-current-directory-with-other-application,view.invert-selection,view.current-directory-properties,view.send-email,view.new-folder,view.paste_accel,view.current-directory-console,view.copy-current-location]
+                                    panel [0,0 710x504] {sensitive,showing,visible}
+                                      panel [0,0 710x504] {sensitive,showing,visible}
+                                        panel [0,0 710x504] {sensitive,showing,visible}
+                                          scroll pane [0,0 710x504] {focusable,sensitive,showing,visible}
+                                            table "Content View" [0,0 710x504] {focusable,sensitive,showing,visible} actions=[list.unselect-all,list.select-all]
+                                              table cell "Desktop" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Documents" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Downloads" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Music" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Pictures" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Public" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "scripts" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Templates" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "tools" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                                              table cell "Videos" [0,0 144x132] {focusable,selectable,sensitive,showing,visible} actions=[listitem.scroll-to]
+                              panel [0,0 1466428608x32556] {sensitive,showing,visible}
+                    grouping [0,0 710x46] {sensitive,showing,visible}
+                      panel [0,0 710x46] {sensitive,showing,visible}
+                        panel [0,0 710x46] {sensitive,showing,vertical,visible}
+                          tool bar [0,0 710x40] {sensitive,showing,visible} actions=[toolbar.prompt-root-location,toolbar.prompt-home-location,toolbar.edit-location]
+                            grouping [0,0 712x40] {sensitive,showing,visible}
+                              panel [0,0 712x40] {sensitive,showing,visible}
+                                panel [0,0 712x40] {sensitive,showing,visible}
+                                  panel [0,0 80x34] {sensitive,showing,visible}
+                                    panel [0,0 74x34] {horizontal,sensitive,showing,visible}
+                                      grouping [0,0 74x34] {sensitive,showing,visible}
+                                        panel [0,0 74x34] {sensitive,showing,visible}
+                                          panel [0,0 74x34] {sensitive,showing,visible}
+                                            panel [0,0 74x34] {horizontal,sensitive,showing,visible}
+                                              button "Back" [0,0 34x34] {focusable,showing,visible} actions=[click]
+                                              button "Forward" [0,0 34x34] {focusable,showing,visible} actions=[click]
+                                        panel [0,0 1466428608x32556] {sensitive,showing,visible}
+                                  panel [0,0 515x34] {sensitive,showing,visible}
+                                    panel [0,0 515x34] {horizontal,sensitive,showing,visible}
+                                      grouping [0,0 475x34] {sensitive,showing,visible}
+                                        panel [0,0 475x34] {sensitive,showing,visible}
+                                          panel [0,0 475x34] {horizontal,sensitive,showing,visible} actions=[pathbar.open-item-new-tab,pathbar.open-item-new-window,pathbar.properties]
+                                            scroll pane [0,0 440x34] {focusable,sensitive,showing,visible}
+                                              panel [0,0 440x34] {sensitive,showing,visible}
+                                                panel [0,0 440x34] {horizontal,sensitive,showing,visible}
+                                                  panel [0,0 440x34] {horizontal,sensitive,showing,visible}
+                                            button "Current Folder Menu" [0,0 35x34] {sensitive,showing,visible}
+                                              toggle button "Current Folder Menu" [0,0 36x34] {focusable,sensitive,showing,visible,has-popup} actions=[click]
+                                                panel [0,0 16x24] {horizontal,sensitive,showing,visible}
+                                                  grouping [0,0 16x24] {sensitive,showing,visible}
+                                        panel [0,0 1466428608x32556] {sensitive,showing,visible}
+                                        panel [0,0 1466428608x32556] {sensitive,showing,visible}
+                                      grouping [0,0 34x34] {sensitive,showing,visible}
+                                        panel [0,0 34x34] {sensitive,showing,visible}
+                                          toggle button "Search Current Folder" [0,0 34x34] {focusable,sensitive,showing,visible} actions=[click]
+                                        panel [0,0 1466428608x32556] {sensitive,showing,visible}
+                                  panel [0,0 103x34] {sensitive,showing,visible}
+                                    panel [0,0 97x34] {horizontal,sensitive,showing,visible}
+                                      panel [0,0 57x34] {sensitive,showing,visible}
+                                        grouping "List View" [0,0 57x34] {sensitive,showing,visible}
+                                          button "View Options" [0,0 34x34] {focusable,sensitive,showing,visible} actions=[click]
+                                          separator [0,0 1x22] {sensitive,showing,vertical,visible}
+                                          button "View Options" [0,0 23x34] {sensitive,showing,visible}
+                                            toggle button "View Options" [0,0 24x34] {focusable,sensitive,showing,visible,has-popup} actions=[click]
+                                              panel [0,0 16x24] {sensitive,showing,visible}
+                                      grouping [0,0 34x34] {sensitive,showing,visible}
+                                        button "Close" [0,0 34x34] {focusable,sensitive,showing,visible} actions=[click]
+                          panel [0,0 710x0] {sensitive,showing,visible}
+                            grouping [0,0 710x0] {sensitive,showing,visible}
+                    grouping [0,0 710x0] {sensitive,showing,visible}
+                      panel [0,0 710x0] {sensitive,showing,visible}
+                        panel [0,0 710x0] {sensitive,showing,vertical,visible}
+                          panel [0,0 710x0] {sensitive,showing,visible}
+                            grouping [0,0 710x0] {sensitive,showing,visible}
+                panel [0,0 180x550] {sensitive,showing,visible}
+                  grouping [0,0 180x550] {sensitive,showing,visible}
+                    list "Sidebar" [0,0 180x504] {sensitive,showing,visible} actions=[row.properties,row.stop,row.mount,row.rename,row.start,row.eject,row.format,row.unmount,row.empty-trash,row.remove,row.rescan]
+                      scroll pane [0,0 180x504] {focusable,sensitive,showing,visible}
+                        panel [0,0 180x504] {sensitive,showing,visible}
+                          list [0,0 180x504] {focusable,sensitive,showing,visible}
+                            list item "Open Personal Folder" [0,0 168x36] {focusable,selectable,selected,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Home" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Home" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "Recent Files" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Recent" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Recent" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "Starred Files" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Starred" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Starred" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "Open Network Locations" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Network" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Network" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "Open Trash" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Trash" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Trash" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "/home/patrick/Documents" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Documents" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Documents" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "/home/patrick/Music" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Music" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Music" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "/home/patrick/Pictures" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Pictures" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Pictures" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "/home/patrick/Videos" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Videos" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Videos" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            list item "/home/patrick/Downloads" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                              grouping [0,0 168x36] {sensitive,showing,visible}
+                                panel [0,0 140x36] {horizontal,sensitive,showing,visible}
+                                  image "Downloads" [0,0 24x36] {sensitive,showing,visible}
+                                  label "Downloads" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                            separator [0,0 168x1] {horizontal,sensitive,showing,visible}
+                    grouping [0,0 180x46] {sensitive,showing,visible}
+                      panel [0,0 180x46] {sensitive,showing,visible}
+                        panel [0,0 180x46] {sensitive,showing,vertical,visible}
+                          grouping [0,0 182x46] {sensitive,showing,visible}
+                            panel [0,0 182x46] {sensitive,showing,visible}
+                              panel [0,0 182x46] {sensitive,showing,visible}
+                                panel [0,0 40x34] {sensitive,showing,visible}
+                                  panel [0,0 34x34] {horizontal,sensitive,showing,visible}
+                                    toggle button "Search Everywhere" [0,0 34x34] {focusable,sensitive,showing,visible} actions=[click]
+                                panel [0,0 74x34] {sensitive,showing,visible}
+                                  panel [0,0 74x46] {sensitive,showing,visible}
+                                    panel [0,0 74x18] {sensitive,showing,vertical,visible}
+                                      label "Files" [0,0 74x18] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
+                                panel [0,0 40x34] {sensitive,showing,visible}
+                                  panel [0,0 34x34] {horizontal,sensitive,showing,visible}
+                                    button "Main Menu" [0,0 34x34] {sensitive,showing,visible}
+                                      toggle button "Main Menu" [0,0 34x34] {focusable,sensitive,showing,visible,has-popup} actions=[click]
+                                        panel [0,0 16x24] {horizontal,sensitive,showing,visible}
+                    grouping [0,0 180x0] {sensitive,showing,visible}

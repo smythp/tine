@@ -1,0 +1,1740 @@
+{
+  "role": "application",
+  "name": "org.gnome.Terminal",
+  "bbox": {
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0
+  },
+  "states": [],
+  "actions": [],
+  "child_index": 0,
+  "children": [
+    {
+      "role": "frame",
+      "name": "patrick@archgnome:~",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 788,
+        "h": 581
+      },
+      "states": [
+        "enabled",
+        "resizable",
+        "sensitive",
+        "showing",
+        "visible"
+      ],
+      "actions": [],
+      "child_index": 1,
+      "children": [
+        {
+          "role": "panel",
+          "name": "",
+          "bbox": {
+            "x": 26,
+            "y": 23,
+            "w": 736,
+            "h": 47
+          },
+          "states": [
+            "enabled",
+            "sensitive",
+            "showing",
+            "visible"
+          ],
+          "actions": [],
+          "child_index": 2,
+          "children": [
+            {
+              "role": "filler",
+              "name": "",
+              "bbox": {
+                "x": 715,
+                "y": 23,
+                "w": 41,
+                "h": 46
+              },
+              "states": [
+                "enabled",
+                "horizontal",
+                "sensitive",
+                "showing",
+                "visible"
+              ],
+              "actions": [],
+              "child_index": 3,
+              "children": [
+                {
+                  "role": "separator",
+                  "name": "",
+                  "bbox": {
+                    "x": 715,
+                    "y": 23,
+                    "w": 1,
+                    "h": 46
+                  },
+                  "states": [
+                    "enabled",
+                    "sensitive",
+                    "showing",
+                    "vertical",
+                    "visible"
+                  ],
+                  "actions": [],
+                  "child_index": 4,
+                  "children": []
+                },
+                {
+                  "role": "button",
+                  "name": "Close",
+                  "bbox": {
+                    "x": 722,
+                    "y": 31,
+                    "w": 34,
+                    "h": 30
+                  },
+                  "states": [
+                    "enabled",
+                    "sensitive",
+                    "showing",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": []
+                }
+              ]
+            },
+            {
+              "role": "button",
+              "name": "Find",
+              "bbox": {
+                "x": 631,
+                "y": 23,
+                "w": 36,
+                "h": 46
+              },
+              "states": [
+                "enabled",
+                "focusable",
+                "sensitive",
+                "showing",
+                "visible"
+              ],
+              "actions": [
+                "click"
+              ],
+              "child_index": 3,
+              "children": []
+            },
+            {
+              "role": "toggle button",
+              "name": "Menu",
+              "bbox": {
+                "x": 673,
+                "y": 23,
+                "w": 36,
+                "h": 46
+              },
+              "states": [
+                "enabled",
+                "focusable",
+                "sensitive",
+                "showing",
+                "visible"
+              ],
+              "actions": [
+                "click"
+              ],
+              "child_index": 3,
+              "children": []
+            },
+            {
+              "role": "filler",
+              "name": "",
+              "bbox": {
+                "x": 300,
+                "y": 36,
+                "w": 187,
+                "h": 19
+              },
+              "states": [
+                "enabled",
+                "sensitive",
+                "showing",
+                "vertical",
+                "visible"
+              ],
+              "actions": [],
+              "child_index": 3,
+              "children": [
+                {
+                  "role": "label",
+                  "name": "patrick@archgnome:~",
+                  "bbox": {
+                    "x": 300,
+                    "y": 36,
+                    "w": 187,
+                    "h": 19
+                  },
+                  "states": [
+                    "enabled",
+                    "multi-line",
+                    "sensitive",
+                    "showing",
+                    "visible"
+                  ],
+                  "actions": [],
+                  "child_index": 4,
+                  "children": []
+                },
+                {
+                  "role": "label",
+                  "name": "",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "multi-line",
+                    "sensitive"
+                  ],
+                  "actions": [],
+                  "child_index": 4,
+                  "children": []
+                }
+              ]
+            },
+            {
+              "role": "filler",
+              "name": "",
+              "bbox": {
+                "x": 32,
+                "y": 23,
+                "w": 36,
+                "h": 46
+              },
+              "states": [
+                "enabled",
+                "horizontal",
+                "sensitive",
+                "showing",
+                "visible"
+              ],
+              "actions": [],
+              "child_index": 3,
+              "children": [
+                {
+                  "role": "button",
+                  "name": "New Tab",
+                  "bbox": {
+                    "x": 32,
+                    "y": 23,
+                    "w": 36,
+                    "h": 46
+                  },
+                  "states": [
+                    "enabled",
+                    "focusable",
+                    "sensitive",
+                    "showing",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": []
+                },
+                {
+                  "role": "toggle button",
+                  "name": "Profiles",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "focusable",
+                    "sensitive"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "role": "filler",
+          "name": "",
+          "bbox": {
+            "x": 26,
+            "y": 70,
+            "w": 736,
+            "h": 482
+          },
+          "states": [
+            "enabled",
+            "sensitive",
+            "showing",
+            "vertical",
+            "visible"
+          ],
+          "actions": [],
+          "child_index": 2,
+          "children": [
+            {
+              "role": "menu bar",
+              "name": "",
+              "bbox": {
+                "x": -2147483648,
+                "y": -2147483648,
+                "w": 1,
+                "h": 1
+              },
+              "states": [
+                "enabled",
+                "sensitive"
+              ],
+              "actions": [],
+              "child_index": 3,
+              "children": [
+                {
+                  "role": "menu",
+                  "name": "File",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "sensitive",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "menu item",
+                      "name": "New Terminal",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "separator",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Close Tab",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Close Window",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "role": "menu",
+                  "name": "Edit",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "sensitive",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "menu item",
+                      "name": "Copy",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "selectable",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Copy as HTML",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "selectable",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Paste",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "selectable",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "separator",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Select All",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "separator",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Preferences",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "role": "menu",
+                  "name": "View",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "sensitive",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "check menu item",
+                      "name": "Show Menubar",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "check menu item",
+                      "name": "Full Screen",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "separator",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Zoom In",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Normal Size",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Zoom Out",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "role": "menu",
+                  "name": "Search",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "sensitive",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "menu item",
+                      "name": "Find\u2026",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Find Next",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "selectable",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Find Previous",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "selectable",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Clear Highlight",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "selectable",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "role": "menu",
+                  "name": "Terminal",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "sensitive",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "check menu item",
+                      "name": "Read-Only",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "separator",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Reset",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "Reset and Clear",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "separator",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "1. 80\u00d724",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "2. 80\u00d743",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "3. 132\u00d724",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "4. 132\u00d743",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "role": "menu",
+                  "name": "Help",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "sensitive",
+                    "visible"
+                  ],
+                  "actions": [
+                    "click"
+                  ],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "menu item",
+                      "name": "Contents",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    },
+                    {
+                      "role": "menu item",
+                      "name": "About",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "selectable",
+                        "sensitive",
+                        "visible"
+                      ],
+                      "actions": [
+                        "click"
+                      ],
+                      "child_index": 5,
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "page tab list",
+              "name": "",
+              "bbox": {
+                "x": 26,
+                "y": 70,
+                "w": 736,
+                "h": 482
+              },
+              "states": [
+                "enabled",
+                "sensitive",
+                "showing",
+                "visible"
+              ],
+              "actions": [],
+              "child_index": 3,
+              "children": [
+                {
+                  "role": "page tab",
+                  "name": "",
+                  "bbox": {
+                    "x": -1,
+                    "y": -1,
+                    "w": -1,
+                    "h": -1
+                  },
+                  "states": [
+                    "enabled",
+                    "selectable",
+                    "selected",
+                    "showing",
+                    "visible"
+                  ],
+                  "actions": [],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "panel",
+                      "name": "",
+                      "bbox": {
+                        "x": 26,
+                        "y": 70,
+                        "w": 736,
+                        "h": 482
+                      },
+                      "states": [
+                        "enabled",
+                        "sensitive",
+                        "showing",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": [
+                        {
+                          "role": "filler",
+                          "name": "",
+                          "bbox": {
+                            "x": 26,
+                            "y": 70,
+                            "w": 736,
+                            "h": 482
+                          },
+                          "states": [
+                            "enabled",
+                            "horizontal",
+                            "sensitive",
+                            "showing",
+                            "visible"
+                          ],
+                          "actions": [],
+                          "child_index": 6,
+                          "children": [
+                            {
+                              "role": "terminal",
+                              "name": "Terminal",
+                              "bbox": {
+                                "x": 26,
+                                "y": 70,
+                                "w": 722,
+                                "h": 482
+                              },
+                              "states": [
+                                "enabled",
+                                "focusable",
+                                "sensitive",
+                                "showing",
+                                "visible"
+                              ],
+                              "actions": [
+                                "menu"
+                              ],
+                              "child_index": 7,
+                              "children": []
+                            },
+                            {
+                              "role": "scroll bar",
+                              "name": "",
+                              "bbox": {
+                                "x": 748,
+                                "y": 70,
+                                "w": 14,
+                                "h": 482
+                              },
+                              "states": [
+                                "enabled",
+                                "sensitive",
+                                "showing",
+                                "vertical",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "role": "panel",
+          "name": "",
+          "bbox": {
+            "x": -2147483648,
+            "y": -2147483648,
+            "w": 1,
+            "h": 1
+          },
+          "states": [
+            "enabled",
+            "modal",
+            "sensitive"
+          ],
+          "actions": [],
+          "child_index": 2,
+          "children": [
+            {
+              "role": "panel",
+              "name": "",
+              "bbox": {
+                "x": -2147483648,
+                "y": -2147483648,
+                "w": 1,
+                "h": 1
+              },
+              "states": [
+                "enabled",
+                "sensitive",
+                "visible"
+              ],
+              "actions": [],
+              "child_index": 3,
+              "children": [
+                {
+                  "role": "filler",
+                  "name": "",
+                  "bbox": {
+                    "x": -2147483648,
+                    "y": -2147483648,
+                    "w": 1,
+                    "h": 1
+                  },
+                  "states": [
+                    "enabled",
+                    "sensitive",
+                    "vertical",
+                    "visible"
+                  ],
+                  "actions": [],
+                  "child_index": 4,
+                  "children": [
+                    {
+                      "role": "filler",
+                      "name": "",
+                      "bbox": {
+                        "x": -2147483648,
+                        "y": -2147483648,
+                        "w": 1,
+                        "h": 1
+                      },
+                      "states": [
+                        "enabled",
+                        "sensitive",
+                        "vertical",
+                        "visible"
+                      ],
+                      "actions": [],
+                      "child_index": 5,
+                      "children": [
+                        {
+                          "role": "filler",
+                          "name": "",
+                          "bbox": {
+                            "x": -2147483648,
+                            "y": -2147483648,
+                            "w": 1,
+                            "h": 1
+                          },
+                          "states": [
+                            "enabled",
+                            "sensitive",
+                            "vertical",
+                            "visible"
+                          ],
+                          "actions": [],
+                          "child_index": 6,
+                          "children": [
+                            {
+                              "role": "filler",
+                              "name": "",
+                              "bbox": {
+                                "x": -2147483648,
+                                "y": -2147483648,
+                                "w": 1,
+                                "h": 1
+                              },
+                              "states": [
+                                "enabled",
+                                "horizontal",
+                                "sensitive",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": [
+                                {
+                                  "role": "button",
+                                  "name": "Zoom Out",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                },
+                                {
+                                  "role": "button",
+                                  "name": "100%",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                },
+                                {
+                                  "role": "button",
+                                  "name": "Zoom In",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "role": "filler",
+                          "name": "",
+                          "bbox": {
+                            "x": -2147483648,
+                            "y": -2147483648,
+                            "w": 1,
+                            "h": 1
+                          },
+                          "states": [
+                            "enabled",
+                            "sensitive",
+                            "vertical",
+                            "visible"
+                          ],
+                          "actions": [],
+                          "child_index": 6,
+                          "children": [
+                            {
+                              "role": "filler",
+                              "name": "",
+                              "bbox": {
+                                "x": -2147483648,
+                                "y": -2147483648,
+                                "w": 1,
+                                "h": 1
+                              },
+                              "states": [
+                                "enabled",
+                                "sensitive",
+                                "vertical",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": [
+                                {
+                                  "role": "button",
+                                  "name": "New Window",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                },
+                                {
+                                  "role": "button",
+                                  "name": "Full Screen",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "role": "filler",
+                          "name": "",
+                          "bbox": {
+                            "x": -2147483648,
+                            "y": -2147483648,
+                            "w": 1,
+                            "h": 1
+                          },
+                          "states": [
+                            "enabled",
+                            "sensitive",
+                            "vertical",
+                            "visible"
+                          ],
+                          "actions": [],
+                          "child_index": 6,
+                          "children": [
+                            {
+                              "role": "separator",
+                              "name": "",
+                              "bbox": {
+                                "x": -2147483648,
+                                "y": -2147483648,
+                                "w": 1,
+                                "h": 1
+                              },
+                              "states": [
+                                "enabled",
+                                "horizontal",
+                                "sensitive",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": []
+                            },
+                            {
+                              "role": "filler",
+                              "name": "",
+                              "bbox": {
+                                "x": -2147483648,
+                                "y": -2147483648,
+                                "w": 1,
+                                "h": 1
+                              },
+                              "states": [
+                                "enabled",
+                                "sensitive",
+                                "vertical",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": [
+                                {
+                                  "role": "check box",
+                                  "name": "Read-Only",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                },
+                                {
+                                  "role": "filler",
+                                  "name": "",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "sensitive",
+                                    "vertical",
+                                    "visible"
+                                  ],
+                                  "actions": [],
+                                  "child_index": 8,
+                                  "children": [
+                                    {
+                                      "role": "filler",
+                                      "name": "",
+                                      "bbox": {
+                                        "x": -2147483648,
+                                        "y": -2147483648,
+                                        "w": 1,
+                                        "h": 1
+                                      },
+                                      "states": [
+                                        "enabled",
+                                        "sensitive",
+                                        "vertical",
+                                        "visible"
+                                      ],
+                                      "actions": [],
+                                      "child_index": 9,
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "role": "button",
+                                  "name": "Advanced",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "role": "filler",
+                          "name": "",
+                          "bbox": {
+                            "x": -2147483648,
+                            "y": -2147483648,
+                            "w": 1,
+                            "h": 1
+                          },
+                          "states": [
+                            "enabled",
+                            "sensitive",
+                            "vertical",
+                            "visible"
+                          ],
+                          "actions": [],
+                          "child_index": 6,
+                          "children": [
+                            {
+                              "role": "separator",
+                              "name": "",
+                              "bbox": {
+                                "x": -2147483648,
+                                "y": -2147483648,
+                                "w": 1,
+                                "h": 1
+                              },
+                              "states": [
+                                "enabled",
+                                "horizontal",
+                                "sensitive",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": []
+                            },
+                            {
+                              "role": "filler",
+                              "name": "",
+                              "bbox": {
+                                "x": -2147483648,
+                                "y": -2147483648,
+                                "w": 1,
+                                "h": 1
+                              },
+                              "states": [
+                                "enabled",
+                                "sensitive",
+                                "vertical",
+                                "visible"
+                              ],
+                              "actions": [],
+                              "child_index": 7,
+                              "children": [
+                                {
+                                  "role": "button",
+                                  "name": "Preferences",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                },
+                                {
+                                  "role": "button",
+                                  "name": "Help",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                },
+                                {
+                                  "role": "button",
+                                  "name": "About",
+                                  "bbox": {
+                                    "x": -2147483648,
+                                    "y": -2147483648,
+                                    "w": 1,
+                                    "h": 1
+                                  },
+                                  "states": [
+                                    "enabled",
+                                    "focusable",
+                                    "sensitive",
+                                    "visible"
+                                  ],
+                                  "actions": [
+                                    "click"
+                                  ],
+                                  "child_index": 8,
+                                  "children": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
