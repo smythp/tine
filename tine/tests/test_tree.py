@@ -6,6 +6,10 @@ VTE/GTK3, and gnome-shell tree structures.
 
 The processing pipeline is:
     raw tree dict → collapse_containers → assign_refs → format_tree → text output
+
+Role name convention: AT-SPI2 uses space-separated names like 'push button',
+'toggle button', 'check box'. The fixtures use these names. Synthetic test
+nodes must use the same convention.
 """
 
 import json
@@ -47,6 +51,11 @@ def gnome_shell_tree():
 # ---------------------------------------------------------------------------
 
 def make_node(role, name='', children=None, bbox=None, states=None, actions=None):
+    """Build a synthetic tree node matching the fixture JSON schema.
+
+    Role names must use AT-SPI2 convention: space-separated like 'push button',
+    'toggle button', 'check box', 'menu item', etc.
+    """
     return {
         'role': role,
         'name': name,
@@ -54,6 +63,7 @@ def make_node(role, name='', children=None, bbox=None, states=None, actions=None
         'states': states or [],
         'actions': actions or [],
         'children': children or [],
+        'child_index': 0,
     }
 
 
@@ -66,27 +76,26 @@ class TestContainerCollapsing:
     should be collapsed, promoting their children."""
 
     def test_single_unnamed_panel_collapsed(self):
-        """panel '' with one child → child promoted."""
+        """panel '' with one child -> child promoted."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Settings', children=[
             make_node('panel', '', children=[
-                make_node('push_button', 'Wi-Fi'),
+                make_node('button', 'Wi-Fi'),
             ]),
         ])
         result = collapse_containers(tree)
-        # The frame should directly contain the button
         assert result['role'] == 'frame'
         assert len(result['children']) == 1
-        assert result['children'][0]['role'] == 'push_button'
+        assert result['children'][0]['role'] == 'button'
 
     def test_chain_of_unnamed_panels_collapsed(self):
-        """Multiple nested unnamed panels → all collapsed."""
+        """Multiple nested unnamed panels -> all collapsed."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Settings', children=[
             make_node('panel', '', children=[
                 make_node('panel', '', children=[
                     make_node('panel', '', children=[
-                        make_node('push_button', 'Wi-Fi'),
+                        make_node('button', 'Wi-Fi'),
                     ]),
                 ]),
             ]),
@@ -94,10 +103,10 @@ class TestContainerCollapsing:
         result = collapse_containers(tree)
         assert result['role'] == 'frame'
         assert len(result['children']) == 1
-        assert result['children'][0]['role'] == 'push_button'
+        assert result['children'][0]['role'] == 'button'
 
     def test_unnamed_grouping_collapsed(self):
-        """grouping '' → collapsed like unnamed panel."""
+        """grouping '' -> collapsed like unnamed panel."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Settings', children=[
             make_node('grouping', '', children=[
@@ -109,22 +118,22 @@ class TestContainerCollapsing:
         assert result['children'][0]['name'] == 'Settings categories'
 
     def test_unnamed_filler_collapsed(self):
-        """filler '' → collapsed."""
+        """filler '' -> collapsed."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Window', children=[
             make_node('filler', '', children=[
-                make_node('push_button', 'Close'),
+                make_node('button', 'Close'),
             ]),
         ])
         result = collapse_containers(tree)
-        assert result['children'][0]['role'] == 'push_button'
+        assert result['children'][0]['role'] == 'button'
 
     def test_named_panel_preserved(self):
-        """panel 'Sidebar' → kept (carries semantic meaning)."""
+        """panel 'Sidebar' -> kept (carries semantic meaning)."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Settings', children=[
             make_node('panel', 'Sidebar', children=[
-                make_node('push_button', 'Wi-Fi'),
+                make_node('button', 'Wi-Fi'),
             ]),
         ])
         result = collapse_containers(tree)
@@ -132,7 +141,7 @@ class TestContainerCollapsing:
         assert result['children'][0]['name'] == 'Sidebar'
 
     def test_named_grouping_preserved(self):
-        """grouping 'Settings' → kept."""
+        """grouping 'Settings' -> kept."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'App', children=[
             make_node('grouping', 'Settings', children=[
@@ -143,25 +152,22 @@ class TestContainerCollapsing:
         assert result['children'][0]['role'] == 'grouping'
         assert result['children'][0]['name'] == 'Settings'
 
-    def test_unnamed_panel_multiple_children_kept(self):
-        """Unnamed panel with multiple children → keep the node but still
-        collapsible roles should not get refs. The children are promoted
-        since the wrapper adds no info."""
+    def test_unnamed_panel_multiple_children_promoted(self):
+        """Unnamed panel with multiple children -> children promoted."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'App', children=[
             make_node('panel', '', children=[
-                make_node('push_button', 'OK'),
-                make_node('push_button', 'Cancel'),
+                make_node('button', 'OK'),
+                make_node('button', 'Cancel'),
             ]),
         ])
         result = collapse_containers(tree)
-        # Both buttons promoted to be direct children of frame
         assert len(result['children']) == 2
-        assert result['children'][0]['role'] == 'push_button'
-        assert result['children'][1]['role'] == 'push_button'
+        assert result['children'][0]['role'] == 'button'
+        assert result['children'][1]['role'] == 'button'
 
     def test_scroll_pane_preserved(self):
-        """scroll pane → always kept (viewport context matters)."""
+        """scroll pane -> always kept (viewport context matters)."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'App', children=[
             make_node('scroll pane', '', children=[
@@ -177,7 +183,6 @@ class TestContainerCollapsing:
         from tine.tree import collapse_containers
         result = collapse_containers(settings_tree)
 
-        # Walk the collapsed tree to find the settings list
         def find_node(node, target_role, target_name):
             if node['role'] == target_role and node['name'] == target_name:
                 return node, 0
@@ -190,8 +195,7 @@ class TestContainerCollapsing:
         found = find_node(result, 'list', 'Settings categories')
         assert found is not None, "Settings categories list not found after collapsing"
         node, depth = found
-        # In the raw tree it's at depth ~14. After collapsing it should be
-        # much shallower — within 5 levels of the root.
+        # In the raw tree it's at depth ~14. After collapsing should be <= 5.
         assert depth <= 5, f"Settings categories at depth {depth}, expected <= 5"
 
     def test_terminal_fixture_filler_collapse(self, terminal_tree):
@@ -202,7 +206,7 @@ class TestContainerCollapsing:
 
         def collect_buttons(node):
             buttons = []
-            if node['role'] in ('push_button', 'toggle_button'):
+            if node['role'] in ('button', 'toggle button'):
                 buttons.append(node['name'])
             for child in node.get('children', []):
                 buttons.extend(collect_buttons(child))
@@ -211,6 +215,27 @@ class TestContainerCollapsing:
         buttons = collect_buttons(result)
         assert 'Close' in buttons
         assert 'Find' in buttons
+
+    def test_gnome_shell_named_panels_preserved(self, gnome_shell_tree):
+        """Named panels like 'Window group', 'Overview' carry meaning."""
+        from tine.tree import collapse_containers
+        result = collapse_containers(gnome_shell_tree)
+
+        def has_named_panel(node, name):
+            if node['role'] == 'panel' and node['name'] == name:
+                return True
+            return any(has_named_panel(c, name) for c in node.get('children', []))
+
+        assert has_named_panel(result, 'Overview')
+
+    def test_gnome_shell_fixture_smoke(self, gnome_shell_tree):
+        """gnome-shell tree is the largest/most complex. Smoke test it."""
+        from tine.tree import collapse_containers, assign_refs, format_tree
+        collapsed = collapse_containers(gnome_shell_tree)
+        tree_with_refs, ref_cache = assign_refs(collapsed)
+        output = format_tree(tree_with_refs)
+        assert len(ref_cache) > 0
+        assert len(output) > 0
 
 
 # ===========================================================================
@@ -222,28 +247,49 @@ class TestLabelEchoDedup:
     should be removed (it's redundant)."""
 
     def test_button_with_echo_label(self):
-        """button 'Wi-Fi' > panel > label 'Wi-Fi' → label removed."""
+        """button 'Wi-Fi' > panel > label 'Wi-Fi' -> label removed."""
         from tine.tree import collapse_containers
-        tree = make_node('push_button', 'Wi-Fi', children=[
+        tree = make_node('button', 'Wi-Fi', children=[
             make_node('panel', '', children=[
                 make_node('label', 'Wi-Fi'),
             ]),
         ])
         result = collapse_containers(tree)
-        assert result['role'] == 'push_button'
+        assert result['role'] == 'button'
         assert result['name'] == 'Wi-Fi'
         # No children (label was echo, panel was unnamed wrapper)
         assert len(result.get('children', [])) == 0
 
     def test_button_with_different_label_kept(self):
-        """button 'Submit' > label 'Send Form' → label kept (different text)."""
+        """button 'Submit' > label 'Send Form' -> label kept (different text)."""
         from tine.tree import collapse_containers
-        tree = make_node('push_button', 'Submit', children=[
+        tree = make_node('button', 'Submit', children=[
             make_node('label', 'Send Form'),
         ])
         result = collapse_containers(tree)
         assert len(result['children']) == 1
         assert result['children'][0]['name'] == 'Send Form'
+
+    def test_echo_label_behind_named_wrapper(self):
+        """button 'Wi-Fi' > panel 'content' > label 'Wi-Fi'
+        Named panel survives collapsing, but the echo label inside
+        should still be removed since it echoes the ancestor button."""
+        from tine.tree import collapse_containers
+        tree = make_node('button', 'Wi-Fi', children=[
+            make_node('panel', 'content', children=[
+                make_node('label', 'Wi-Fi'),
+            ]),
+        ])
+        result = collapse_containers(tree)
+        # The named panel may or may not survive, but the echo label
+        # should not appear in the final output
+
+        def has_echo_label(node, parent_name):
+            if node['role'] == 'label' and node['name'] == parent_name:
+                return True
+            return any(has_echo_label(c, parent_name) for c in node.get('children', []))
+
+        assert not has_echo_label(result, 'Wi-Fi')
 
     def test_settings_fixture_no_echo_labels(self, settings_tree):
         """Real Settings tree: after collapsing, buttons should not have
@@ -252,7 +298,7 @@ class TestLabelEchoDedup:
         result = collapse_containers(settings_tree)
 
         def check_no_echo(node):
-            if node['role'] in ('push_button', 'toggle_button') and node['name']:
+            if node['role'] in ('button', 'toggle button') and node['name']:
                 for child in node.get('children', []):
                     if child['role'] == 'label' and child['name'] == node['name']:
                         return False, f"Echo label '{child['name']}' in {node['role']} '{node['name']}'"
@@ -278,14 +324,13 @@ class TestRefAssignment:
         from tine.tree import collapse_containers, assign_refs
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('push_button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+                make_node('button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
             ]),
         ])
         collapsed = collapse_containers(tree)
         tree_with_refs, ref_cache = assign_refs(collapsed)
 
         assert len(ref_cache) >= 1
-        # Find the button's ref
         button_ref = None
         for ref_id, info in ref_cache.items():
             if info['name'] == 'OK':
@@ -310,7 +355,7 @@ class TestRefAssignment:
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
                 make_node('separator', ''),
-                make_node('push_button', 'OK'),
+                make_node('button', 'OK'),
             ]),
         ])
         collapsed = collapse_containers(tree)
@@ -325,7 +370,7 @@ class TestRefAssignment:
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
                 make_node('scroll pane', '', children=[
-                    make_node('push_button', 'Click'),
+                    make_node('button', 'Click'),
                 ]),
             ]),
         ])
@@ -340,7 +385,7 @@ class TestRefAssignment:
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
                 make_node('list', 'Settings categories', children=[
-                    make_node('push_button', 'Wi-Fi'),
+                    make_node('button', 'Wi-Fi'),
                 ]),
             ]),
         ])
@@ -354,9 +399,9 @@ class TestRefAssignment:
         from tine.tree import collapse_containers, assign_refs
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('push_button', 'A'),
-                make_node('push_button', 'B'),
-                make_node('push_button', 'C'),
+                make_node('button', 'A'),
+                make_node('button', 'B'),
+                make_node('button', 'C'),
             ]),
         ])
         collapsed = collapse_containers(tree)
@@ -364,6 +409,69 @@ class TestRefAssignment:
         ref_ids = sorted(ref_cache.keys())
         assert ref_ids[0] == 'ref_1'
         assert ref_ids[-1] == f'ref_{len(ref_ids)}'
+
+    def test_garbage_bbox_no_ref(self):
+        """Elements with absurdly large bboxes (GTK4 rendering artifacts)
+        should not get refs — clicking them would target nonsense coords."""
+        from tine.tree import collapse_containers, assign_refs
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=[
+                make_node('panel', 'Garbage', bbox={'x': 0, 'y': 0, 'w': 1401416896, 'h': 32509}),
+                make_node('button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+            ]),
+        ])
+        collapsed = collapse_containers(tree)
+        _, ref_cache = assign_refs(collapsed)
+        for info in ref_cache.values():
+            assert info['bbox']['w'] < 10000, f"Garbage bbox assigned ref: {info}"
+
+    def test_assign_refs_annotates_tree(self):
+        """assign_refs should add a 'ref' field to nodes that get refs."""
+        from tine.tree import collapse_containers, assign_refs
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=[
+                make_node('button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+            ]),
+        ])
+        collapsed = collapse_containers(tree)
+        tree_with_refs, ref_cache = assign_refs(collapsed)
+
+        def find_ref_on_node(node, target_name):
+            if node.get('name') == target_name:
+                return node.get('ref')
+            for c in node.get('children', []):
+                r = find_ref_on_node(c, target_name)
+                if r:
+                    return r
+            return None
+
+        assert find_ref_on_node(tree_with_refs, 'OK') is not None
+
+    def test_all_roles_that_get_refs(self):
+        """Every interactive role should get a ref."""
+        from tine.tree import collapse_containers, assign_refs
+        # AT-SPI2 space-separated role names
+        interactive_roles = [
+            # Present in fixtures
+            'button', 'toggle button', 'check box', 'check menu item',
+            'menu item', 'text', 'terminal', 'table cell', 'list item',
+            'menu',
+            # Not in current fixtures but expected in other apps
+            'radio button', 'slider', 'combo box', 'link', 'entry',
+            'spin button',
+        ]
+        children = [
+            make_node(role, f'Element_{i}', bbox={'x': 0, 'y': i * 30, 'w': 100, 'h': 25})
+            for i, role in enumerate(interactive_roles)
+        ]
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=children),
+        ])
+        collapsed = collapse_containers(tree)
+        _, ref_cache = assign_refs(collapsed)
+        ref_roles = {info['role'] for info in ref_cache.values()}
+        for role in interactive_roles:
+            assert role in ref_roles, f"Interactive role '{role}' should get a ref"
 
     def test_settings_fixture_ref_count(self, settings_tree):
         """Real Settings tree should produce a reasonable number of refs.
@@ -387,13 +495,12 @@ class TestRefLookup:
         from tine.tree import collapse_containers, assign_refs
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('push_button', 'OK', bbox={'x': 100, 'y': 200, 'w': 80, 'h': 30}),
+                make_node('button', 'OK', bbox={'x': 100, 'y': 200, 'w': 80, 'h': 30}),
             ]),
         ])
         collapsed = collapse_containers(tree)
         _, ref_cache = assign_refs(collapsed)
 
-        # Find OK button ref
         ok_ref = None
         for ref_id, info in ref_cache.items():
             if info['name'] == 'OK':
@@ -401,7 +508,7 @@ class TestRefLookup:
                 break
 
         info = ref_cache[ok_ref]
-        assert info['role'] == 'push_button'
+        assert info['role'] == 'button'
         assert info['name'] == 'OK'
         assert info['bbox'] == {'x': 100, 'y': 200, 'w': 80, 'h': 30}
 
@@ -421,6 +528,28 @@ class TestRefLookup:
         assert cx == 50
         assert cy == 60
 
+    def test_bbox_center_zero_height(self):
+        """Zero-height element at valid position — center still computable."""
+        from tine.refs import bbox_center
+        bbox = {'x': 100, 'y': 200, 'w': 245, 'h': 0}
+        cx, cy = bbox_center(bbox)
+        assert cx == 222  # 100 + 245//2
+        assert cy == 200
+
+    def test_bbox_center_negative_dimensions(self):
+        """INT_MIN bboxes with negative w/h should not produce valid centers.
+        Should either raise or return a sentinel value."""
+        from tine.refs import bbox_center
+        bbox = {'x': -2147483648, 'y': -2147483648, 'w': -2147483648, 'h': -2147483648}
+        # Implementation decides: raise ValueError or return None
+        # But it must NOT silently return a garbage coordinate
+        try:
+            result = bbox_center(bbox)
+            # If it returns something, it should be None or a sentinel
+            assert result is None, f"Garbage bbox returned {result}, expected None or raise"
+        except (ValueError, TypeError):
+            pass  # raising is acceptable
+
 
 # ===========================================================================
 # 5. Output Formatting
@@ -434,14 +563,14 @@ class TestOutputFormatting:
         from tine.tree import collapse_containers, assign_refs, format_tree
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('push_button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+                make_node('button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
             ]),
         ])
         collapsed = collapse_containers(tree)
         tree_with_refs, ref_cache = assign_refs(collapsed)
         output = format_tree(tree_with_refs)
 
-        assert 'push_button' in output
+        assert 'button' in output
         assert "'OK'" in output or '"OK"' in output
         assert '[ref_' in output
 
@@ -449,7 +578,7 @@ class TestOutputFormatting:
         from tine.tree import collapse_containers, assign_refs, format_tree
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('push_button', 'Submit',
+                make_node('button', 'Submit',
                           states=['focused', 'sensitive', 'showing', 'visible'],
                           bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
             ]),
@@ -457,19 +586,51 @@ class TestOutputFormatting:
         collapsed = collapse_containers(tree)
         tree_with_refs, _ = assign_refs(collapsed)
         output = format_tree(tree_with_refs)
-        # 'focused' is non-default and should appear; 'showing'/'visible'/'sensitive'
-        # are default states and should be omitted
+        # 'focused' is non-default and should appear
         assert 'focused' in output
+        # These are default states and should be omitted
         assert 'showing' not in output
         assert 'visible' not in output
+        assert 'sensitive' not in output
+
+    def test_enabled_is_default_state(self):
+        """'enabled' is default like 'sensitive' — should be omitted."""
+        from tine.tree import collapse_containers, assign_refs, format_tree
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=[
+                make_node('button', 'Go',
+                          states=['enabled', 'sensitive', 'showing', 'visible'],
+                          bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+            ]),
+        ])
+        collapsed = collapse_containers(tree)
+        tree_with_refs, _ = assign_refs(collapsed)
+        output = format_tree(tree_with_refs)
+        assert 'enabled' not in output
+        assert 'sensitive' not in output
+
+    def test_disabled_state_shown(self):
+        """A button missing 'sensitive' state is disabled — show that."""
+        from tine.tree import collapse_containers, assign_refs, format_tree
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=[
+                make_node('button', 'Back',
+                          states=['showing', 'visible'],
+                          bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+            ]),
+        ])
+        collapsed = collapse_containers(tree)
+        tree_with_refs, _ = assign_refs(collapsed)
+        output = format_tree(tree_with_refs)
+        assert 'disabled' in output
 
     def test_indentation_reflects_nesting(self):
         from tine.tree import collapse_containers, assign_refs, format_tree
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
                 make_node('list', 'Items', children=[
-                    make_node('push_button', 'A'),
-                    make_node('push_button', 'B'),
+                    make_node('button', 'A'),
+                    make_node('button', 'B'),
                 ]),
             ]),
         ])
@@ -478,7 +639,6 @@ class TestOutputFormatting:
         output = format_tree(tree_with_refs)
         lines = output.strip().split('\n')
 
-        # Find indentation levels — deeper elements should have more leading spaces
         list_line = [l for l in lines if 'Items' in l]
         button_lines = [l for l in lines if "'A'" in l or '"A"' in l]
         assert len(list_line) == 1
@@ -494,13 +654,10 @@ class TestOutputFormatting:
         tree_with_refs, ref_cache = assign_refs(collapsed)
         output = format_tree(tree_with_refs)
 
-        # Should contain known buttons from Settings sidebar
         assert 'Wi-Fi' in output
         assert 'Bluetooth' in output
         assert 'Keyboard' in output
-        # Should have refs
         assert '[ref_' in output
-        # Should be reasonably compact (not 162+ raw lines)
         lines = [l for l in output.strip().split('\n') if l.strip()]
         assert len(lines) < 100, f"Output too verbose: {len(lines)} lines"
         assert len(lines) >= 15, f"Output too sparse: {len(lines)} lines"
@@ -517,10 +674,10 @@ class TestHiddenElements:
     INT_MIN = -2147483648
 
     def test_int_min_leaf_filtered(self):
-        """A leaf element at INT_MIN with no visible children → filtered out."""
+        """A leaf element at INT_MIN with no visible children -> filtered out."""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Window', children=[
-            make_node('push_button', 'Visible', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+            make_node('button', 'Visible', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
             make_node('label', 'Ghost', bbox={'x': self.INT_MIN, 'y': self.INT_MIN, 'w': 1, 'h': 1}),
         ])
         result = collapse_containers(tree)
@@ -528,8 +685,8 @@ class TestHiddenElements:
         assert 'Visible' in names
         assert 'Ghost' not in names
 
-    def test_int_min_parent_with_visible_children_kept(self):
-        """Menu bar at INT_MIN but with semantic children → kept.
+    def test_int_min_parent_with_semantic_children_kept(self):
+        """Menu bar at INT_MIN but with semantic children -> kept.
         (Terminal menus are off-screen but contain useful structure.)"""
         from tine.tree import collapse_containers
         tree = make_node('frame', 'Window', children=[
@@ -540,12 +697,29 @@ class TestHiddenElements:
             ]),
         ])
         result = collapse_containers(tree)
-        # Menu structure should be preserved even though off-screen
+
         def has_role(node, role):
             if node['role'] == role:
                 return True
             return any(has_role(c, role) for c in node.get('children', []))
+
         assert has_role(result, 'menu bar') or has_role(result, 'menu')
+
+    def test_negative_dimension_bbox(self):
+        """gnome-shell has bboxes with negative width AND height
+        (not just INT_MIN position + 1x1). These should be treated as hidden."""
+        from tine.tree import collapse_containers
+        tree = make_node('frame', 'Window', children=[
+            make_node('button', 'Good', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+            make_node('panel', 'Bad', bbox={
+                'x': self.INT_MIN, 'y': self.INT_MIN,
+                'w': self.INT_MIN, 'h': self.INT_MIN,
+            }),
+        ])
+        result = collapse_containers(tree)
+        names = [c['name'] for c in result['children']]
+        assert 'Good' in names
+        assert 'Bad' not in names
 
     def test_terminal_fixture_menus_preserved(self, terminal_tree):
         """Real terminal tree: menus at INT_MIN should survive collapsing
@@ -562,7 +736,6 @@ class TestHiddenElements:
             return items
 
         items = collect_menu_items(result)
-        # Terminal has menu items like New Terminal, Copy, Paste, etc
         assert len(items) > 5, f"Too few menu items: {items}"
 
 
@@ -586,7 +759,7 @@ class TestEdgeCases:
         """Minimal tree: just one button."""
         from tine.tree import collapse_containers, assign_refs, format_tree
         tree = make_node('application', 'App', children=[
-            make_node('push_button', 'Go', bbox={'x': 0, 'y': 0, 'w': 50, 'h': 30}),
+            make_node('button', 'Go', bbox={'x': 0, 'y': 0, 'w': 50, 'h': 30}),
         ])
         collapsed = collapse_containers(tree)
         tree_with_refs, ref_cache = assign_refs(collapsed)
@@ -595,35 +768,15 @@ class TestEdgeCases:
         assert 'Go' in output
 
     def test_deeply_nested_single_path(self):
-        """20 levels of unnamed panels wrapping one button → collapses clean."""
+        """20 levels of unnamed panels wrapping one button -> collapses clean."""
         from tine.tree import collapse_containers
-        node = make_node('push_button', 'Deep')
+        node = make_node('button', 'Deep')
         for _ in range(20):
             node = make_node('panel', '', children=[node])
         tree = make_node('frame', 'App', children=[node])
         result = collapse_containers(tree)
-        assert result['children'][0]['role'] == 'push_button'
+        assert result['children'][0]['role'] == 'button'
         assert result['children'][0]['name'] == 'Deep'
-
-    def test_all_roles_that_get_refs(self):
-        """Every interactive role should get a ref."""
-        from tine.tree import collapse_containers, assign_refs
-        interactive_roles = [
-            'push_button', 'toggle_button', 'check_box', 'radio_button',
-            'text', 'slider', 'combo_box', 'link', 'menu_item', 'entry',
-        ]
-        children = [
-            make_node(role, f'Element_{i}', bbox={'x': 0, 'y': i * 30, 'w': 100, 'h': 25})
-            for i, role in enumerate(interactive_roles)
-        ]
-        tree = make_node('application', 'App', children=[
-            make_node('frame', 'Window', children=children),
-        ])
-        collapsed = collapse_containers(tree)
-        _, ref_cache = assign_refs(collapsed)
-        ref_roles = {info['role'] for info in ref_cache.values()}
-        for role in interactive_roles:
-            assert role in ref_roles, f"Interactive role '{role}' should get a ref"
 
     def test_nautilus_fixture_loads_and_processes(self, nautilus_tree):
         """Nautilus fixture should process without errors and produce refs."""
@@ -648,8 +801,8 @@ class TestRefCachePersistence:
 
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('push_button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
-                make_node('push_button', 'Cancel', bbox={'x': 100, 'y': 20, 'w': 80, 'h': 30}),
+                make_node('button', 'OK', bbox={'x': 10, 'y': 20, 'w': 80, 'h': 30}),
+                make_node('button', 'Cancel', bbox={'x': 100, 'y': 20, 'w': 80, 'h': 30}),
             ]),
         ])
         collapsed = collapse_containers(tree)
