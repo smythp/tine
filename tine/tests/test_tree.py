@@ -223,17 +223,19 @@ class TestContainerCollapsing:
 
     def test_gnome_shell_int_min_subtrees_pruned(self, gnome_shell_tree):
         """gnome-shell has deep chains of unnamed panels at INT_MIN with
-        negative dimensions. These entire subtrees should be pruned unless
-        they contain named descendants worth keeping."""
+        negative dimensions. No element with INT_MIN coords and negative/zero
+        dimensions should get a ref — the filter is geometry-based."""
         from tine.tree import collapse_containers, assign_refs
         collapsed = collapse_containers(gnome_shell_tree)
         _, ref_cache = assign_refs(collapsed)
         INT_MIN = -2147483648
         for info in ref_cache.values():
             bbox = info['bbox']
-            assert bbox['x'] != INT_MIN or bbox['w'] > 0, (
-                f"Ref assigned to INT_MIN element: {info['role']} '{info['name']}'"
-            )
+            if bbox['x'] == INT_MIN:
+                assert bbox['w'] > 0, (
+                    f"Ref assigned to INT_MIN element with non-positive width: "
+                    f"{info['role']} '{info['name']}' bbox={bbox}"
+                )
 
     def test_gnome_shell_named_panels_preserved(self, gnome_shell_tree):
         """Named panels like 'Window group', 'Overview' carry meaning."""
@@ -439,6 +441,38 @@ class TestRefAssignment:
         ref_ids = sorted(ref_cache.keys())
         assert ref_ids[0] == 'ref_1'
         assert ref_ids[-1] == f'ref_{len(ref_ids)}'
+
+    def test_duplicate_named_elements_get_distinct_refs(self):
+        """Multiple elements with the same name (e.g. two 'Close' buttons in
+        different windows) must get separate refs. Keying the cache on name
+        alone would silently drop one."""
+        from tine.tree import collapse_containers, assign_refs
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=[
+                make_node('button', 'Close', bbox={'x': 10, 'y': 10, 'w': 30, 'h': 30}),
+                make_node('button', 'Close', bbox={'x': 200, 'y': 10, 'w': 30, 'h': 30}),
+            ]),
+        ])
+        collapsed = collapse_containers(tree)
+        _, ref_cache = assign_refs(collapsed)
+        close_refs = [rid for rid, info in ref_cache.items() if info['name'] == 'Close']
+        assert len(close_refs) == 2, f"Expected 2 refs for 'Close', got {len(close_refs)}"
+        assert close_refs[0] != close_refs[1]
+
+    def test_unnamed_interactive_element_gets_ref(self):
+        """button '' (icon button without accessible name) should still get
+        a ref — the agent can click it by position. Common in toolbars."""
+        from tine.tree import collapse_containers, assign_refs, format_tree
+        tree = make_node('application', 'App', children=[
+            make_node('frame', 'Window', children=[
+                make_node('button', '', bbox={'x': 10, 'y': 10, 'w': 30, 'h': 30}),
+            ]),
+        ])
+        collapsed = collapse_containers(tree)
+        tree_with_refs, ref_cache = assign_refs(collapsed)
+        assert len(ref_cache) >= 1, "Unnamed button should still get a ref"
+        output = format_tree(tree_with_refs)
+        assert '[ref_' in output
 
     def test_garbage_bbox_no_ref(self):
         """Elements with absurdly large bboxes (GTK4 rendering artifacts)
