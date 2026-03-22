@@ -67,6 +67,10 @@ def _is_valid_ref_bbox(bbox):
     x = bbox.get('x', 0)
     y = bbox.get('y', 0)
 
+    # Negative dimensions — bbox_center returns None for these
+    if w < 0 or h < 0:
+        return False
+
     # Garbage: absurdly large dimensions
     if w > GARBAGE_BBOX_THRESHOLD or h > GARBAGE_BBOX_THRESHOLD:
         return False
