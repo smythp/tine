@@ -71,10 +71,8 @@ def _is_valid_ref_bbox(bbox):
     if w > GARBAGE_BBOX_THRESHOLD or h > GARBAGE_BBOX_THRESHOLD:
         return False
 
-    # INT_MIN with non-positive dimensions
-    if x == INT_MIN and w <= 0:
-        return False
-    if y == INT_MIN and h <= 0:
+    # Any INT_MIN coordinate — bbox_center returns None for these
+    if x == INT_MIN or y == INT_MIN:
         return False
 
     return True
