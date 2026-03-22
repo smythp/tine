@@ -31,7 +31,7 @@ def _walk_atspi(app=None):
     Raises RuntimeError on failure.
     """
     cmd = [sys.executable, '-m', 'tine.atspi_walker']
-    if app:
+    if app is not None:
         cmd.append(app)
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -39,7 +39,15 @@ def _walk_atspi(app=None):
         raise RuntimeError('AT-SPI2 walker timed out after 30s')
     if result.returncode != 0:
         raise RuntimeError(f'AT-SPI2 walker failed: {result.stderr.strip()}')
-    return json.loads(result.stdout)
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f'AT-SPI2 walker returned invalid JSON: {e}') from e
+    if not isinstance(parsed, dict):
+        raise RuntimeError(
+            f'AT-SPI2 walker returned unexpected type: {type(parsed).__name__}'
+        )
+    return parsed
 
 
 def _resolve_window_offset(app_name):
@@ -93,6 +101,11 @@ def _cmd_tree(args):
         raw_tree = _walk_atspi(app=args.app)
     except RuntimeError as e:
         print(str(e), file=sys.stderr)
+        sys.exit(1)
+
+    if not isinstance(raw_tree, dict):
+        print(f'Error: AT-SPI2 walker returned unexpected type: {type(raw_tree).__name__}',
+              file=sys.stderr)
         sys.exit(1)
 
     collapsed = tine.tree.collapse_containers(raw_tree)

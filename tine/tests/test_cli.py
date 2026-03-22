@@ -1107,6 +1107,33 @@ class TestAtspiWalker:
         assert result['role'] == 'application'
         assert result['name'] == 'Settings'
 
+    def test_walker_accepts_app_name_even_if_empty_string(self, monkeypatch):
+        """BUG: _walk_atspi drops app filter when app='' due to truthiness check.
+
+        Empty string can be a legitimate filter value (e.g. user explicitly passes
+        --app '' from a higher-level wrapper). Implementation uses `if app:` so
+        it fails to pass through empty-string values.
+        """
+        received_cmds = []
+
+        def fake_subprocess_run(cmd, **kwargs):
+            received_cmds.append(cmd)
+            return type('R', (), {
+                'returncode': 0,
+                'stdout': json.dumps({'role': 'application', 'name': '', 'bbox': {}, 'states': [], 'actions': [], 'children': []}),
+                'stderr': '',
+            })()
+
+        import subprocess
+        monkeypatch.setattr(subprocess, 'run', fake_subprocess_run)
+
+        import tine.cli as cli_mod
+        cli_mod._walk_atspi(app='')
+
+        # Expect the empty app argument to be forwarded as a positional arg
+        assert received_cmds, 'subprocess.run should be called'
+        assert received_cmds[0][-1] == ''
+
     def test_walker_subprocess_failure(self, monkeypatch):
         """Subprocess failure raises RuntimeError."""
         def fake_subprocess_run(cmd, **kwargs):
@@ -1122,6 +1149,38 @@ class TestAtspiWalker:
         import tine.cli as cli_mod
         with pytest.raises(RuntimeError, match='AT-SPI2'):
             cli_mod._walk_atspi()
+
+    def test_walker_empty_stdout_is_wrapped_as_runtime_error(self, monkeypatch):
+        """BUG: _walk_atspi lets JSONDecodeError escape on empty stdout.
+
+        If subprocess returns 0 but stdout is empty (common for misconfigured
+        AT-SPI sessions), json.loads('') raises JSONDecodeError, not RuntimeError.
+        """
+
+        def fake_subprocess_run(cmd, **kwargs):
+            return type('R', (), {
+                'returncode': 0,
+                'stdout': '',
+                'stderr': '',
+            })()
+
+        import subprocess
+        monkeypatch.setattr(subprocess, 'run', fake_subprocess_run)
+
+        import tine.cli as cli_mod
+        with pytest.raises(RuntimeError):
+            cli_mod._walk_atspi()
+
+    def test_tree_command_handles_non_dict_tree_gracefully(self, monkeypatch, tmp_path):
+        """BUG: _cmd_tree assumes _walk_atspi returns dict; list crashes with AttributeError."""
+        ref_cache_path = str(tmp_path / 'refs.json')
+        monkeypatch.setenv('TINE_REF_CACHE', ref_cache_path)
+
+        import tine.cli as cli_mod
+        monkeypatch.setattr(cli_mod, '_walk_atspi', lambda app=None: [])
+
+        with pytest.raises(SystemExit):
+            cli_mod.main(['tree'])
 
     def test_walker_passes_app_filter(self, monkeypatch):
         """App filter is passed as argument to the subprocess."""
