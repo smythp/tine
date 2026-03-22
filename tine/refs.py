@@ -21,7 +21,7 @@ def bbox_center(bbox):
     w = bbox.get('w', 0)
     h = bbox.get('h', 0)
 
-    if x == INT_MIN and (w < 0 or h < 0):
+    if x == INT_MIN or y == INT_MIN:
         return None
     if w < 0 or h < 0:
         return None

@@ -49,12 +49,14 @@ def _has_negative_dims(node):
 
 
 def _has_semantic_descendants(node):
-    """Check if node or any descendant has an interactive role."""
-    if node['role'] in INTERACTIVE_ROLES:
-        return True
-    for child in node.get('children', []):
-        if _has_semantic_descendants(child):
+    """Check if node or any descendant has an interactive role.
+    Iterative to avoid stack overflow on deep trees."""
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current['role'] in INTERACTIVE_ROLES:
             return True
+        stack.extend(current.get('children', []))
     return False
 
 
