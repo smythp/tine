@@ -55,6 +55,11 @@ def make_node(role, name='', children=None, bbox=None, states=None, actions=None
 
     Role names must use AT-SPI2 convention: space-separated like 'push button',
     'toggle button', 'check box', 'menu item', etc.
+
+    bbox defaults to {x:0, y:0, w:0, h:0} meaning "no bbox data available."
+    The implementation must NOT filter nodes with zero-area bboxes — these are
+    common for elements where AT-SPI2 didn't report geometry. Only filter on
+    INT_MIN coords or absurdly large dimensions (rendering artifacts).
     """
     return {
         'role': role,
@@ -216,6 +221,20 @@ class TestContainerCollapsing:
         assert 'Close' in buttons
         assert 'Find' in buttons
 
+    def test_gnome_shell_int_min_subtrees_pruned(self, gnome_shell_tree):
+        """gnome-shell has deep chains of unnamed panels at INT_MIN with
+        negative dimensions. These entire subtrees should be pruned unless
+        they contain named descendants worth keeping."""
+        from tine.tree import collapse_containers, assign_refs
+        collapsed = collapse_containers(gnome_shell_tree)
+        _, ref_cache = assign_refs(collapsed)
+        INT_MIN = -2147483648
+        for info in ref_cache.values():
+            bbox = info['bbox']
+            assert bbox['x'] != INT_MIN or bbox['w'] > 0, (
+                f"Ref assigned to INT_MIN element: {info['role']} '{info['name']}'"
+            )
+
     def test_gnome_shell_named_panels_preserved(self, gnome_shell_tree):
         """Named panels like 'Window group', 'Overview' carry meaning."""
         from tine.tree import collapse_containers
@@ -229,13 +248,18 @@ class TestContainerCollapsing:
         assert has_named_panel(result, 'Overview')
 
     def test_gnome_shell_fixture_smoke(self, gnome_shell_tree):
-        """gnome-shell tree is the largest/most complex. Smoke test it."""
+        """gnome-shell tree is the largest/most complex.
+        Has deep INT_MIN chains, negative-dimension bboxes, and named panels.
+        A regression that over-filters or under-filters would show in the bounds."""
         from tine.tree import collapse_containers, assign_refs, format_tree
         collapsed = collapse_containers(gnome_shell_tree)
         tree_with_refs, ref_cache = assign_refs(collapsed)
         output = format_tree(tree_with_refs)
-        assert len(ref_cache) > 0
-        assert len(output) > 0
+        # gnome-shell has app grid buttons, overview elements, etc
+        assert len(ref_cache) >= 5, f"Too few refs from gnome-shell: {len(ref_cache)}"
+        assert len(ref_cache) <= 200, f"Too many refs (under-filtering): {len(ref_cache)}"
+        lines = [l for l in output.strip().split('\n') if l.strip()]
+        assert len(lines) >= 5, f"Output too sparse: {len(lines)} lines"
 
 
 # ===========================================================================
@@ -273,7 +297,11 @@ class TestLabelEchoDedup:
     def test_echo_label_behind_named_wrapper(self):
         """button 'Wi-Fi' > panel 'content' > label 'Wi-Fi'
         Named panel survives collapsing, but the echo label inside
-        should still be removed since it echoes the ancestor button."""
+        should still be removed since it echoes the ancestor button.
+
+        This means echo dedup must walk up through the ancestor chain,
+        not just check the immediate parent. A label echoes if ANY
+        ancestor with a matching name exists."""
         from tine.tree import collapse_containers
         tree = make_node('button', 'Wi-Fi', children=[
             make_node('panel', 'content', children=[
@@ -384,8 +412,10 @@ class TestRefAssignment:
         from tine.tree import collapse_containers, assign_refs
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('list', 'Settings categories', children=[
-                    make_node('button', 'Wi-Fi'),
+                make_node('list', 'Settings categories',
+                          bbox={'x': 0, 'y': 0, 'w': 245, 'h': 600},
+                          children=[
+                    make_node('button', 'Wi-Fi', bbox={'x': 0, 'y': 0, 'w': 233, 'h': 43}),
                 ]),
             ]),
         ])
@@ -399,9 +429,9 @@ class TestRefAssignment:
         from tine.tree import collapse_containers, assign_refs
         tree = make_node('application', 'App', children=[
             make_node('frame', 'Window', children=[
-                make_node('button', 'A'),
-                make_node('button', 'B'),
-                make_node('button', 'C'),
+                make_node('button', 'A', bbox={'x': 10, 'y': 10, 'w': 80, 'h': 30}),
+                make_node('button', 'B', bbox={'x': 10, 'y': 50, 'w': 80, 'h': 30}),
+                make_node('button', 'C', bbox={'x': 10, 'y': 90, 'w': 80, 'h': 30}),
             ]),
         ])
         collapsed = collapse_containers(tree)
@@ -448,15 +478,18 @@ class TestRefAssignment:
         assert find_ref_on_node(tree_with_refs, 'OK') is not None
 
     def test_all_roles_that_get_refs(self):
-        """Every interactive role should get a ref."""
+        """Every interactive role should get a ref.
+        The implementation must use a broad inclusive list — not just
+        roles observed in our test fixtures."""
         from tine.tree import collapse_containers, assign_refs
-        # AT-SPI2 space-separated role names
+        # AT-SPI2 space-separated role names.
+        # All of these MUST get refs — the list is intentionally broad.
         interactive_roles = [
-            # Present in fixtures
+            # Confirmed in archgnome fixtures
             'button', 'toggle button', 'check box', 'check menu item',
             'menu item', 'text', 'terminal', 'table cell', 'list item',
             'menu',
-            # Not in current fixtures but expected in other apps
+            # Standard AT-SPI2 roles expected in other apps (not in current fixtures)
             'radio button', 'slider', 'combo box', 'link', 'entry',
             'spin button',
         ]
