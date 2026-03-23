@@ -25,6 +25,14 @@ _ALLOWED_CACHE_DIRS = (
 )
 
 
+def _safe_coord(v):
+    """Safely cast a bounding box coordinate value to int, returning 0 on failure."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _ref_cache_path():
     """Return path for the ref cache file.
 
@@ -36,7 +44,7 @@ def _ref_cache_path():
     resolved = os.path.realpath(os.path.abspath(path))
     for allowed in _ALLOWED_CACHE_DIRS:
         allowed_abs = os.path.realpath(os.path.abspath(allowed))
-        if resolved.startswith(allowed_abs + os.sep) or resolved == allowed_abs:
+        if resolved.startswith(allowed_abs + os.sep):
             return resolved
     raise ValueError(
         f'TINE_REF_CACHE path "{path}" is not under an allowed directory '
@@ -90,12 +98,6 @@ def _resolve_window_offset(app_name):
 
     app_lower = app_name.lower()
 
-    def _safe_coord(v):
-        try:
-            return int(v)
-        except (TypeError, ValueError):
-            return 0
-
     # Try wm_class substring match first
     for w in windows:
         wm_class = w.get('wm_class', '')
@@ -139,8 +141,11 @@ def _cmd_tree(args):
     output = tine.tree.format_tree(annotated)
     print(output)
 
-    # Save ref cache with _app metadata
-    app_name = raw_tree.get('name', '')
+    # Save ref cache with _app metadata.
+    # Fall back to raw_tree['application']['name'] when the top-level 'name'
+    # key is absent (atspi_walker may omit it if the root node has no name).
+    app_name = (raw_tree.get('name', '')
+                or raw_tree.get('application', {}).get('name', ''))
     ref_cache['_app'] = app_name
     tine.refs.save_ref_cache(ref_cache, _ref_cache_path())
 
@@ -167,8 +172,8 @@ def _cmd_screenshot(args):
                 bbox = adjusted_data.get('bbox') or {}
                 # Write bbox back in case it was None or missing
                 adjusted_data['bbox'] = bbox
-                bbox['x'] = bbox.get('x', 0) + offset[0]
-                bbox['y'] = bbox.get('y', 0) + offset[1]
+                bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0]
+                bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1]
                 adjusted[ref_id] = adjusted_data
 
             tine.screenshot.annotate(path, adjusted, scale=args.scale)
@@ -190,6 +195,11 @@ def _cmd_click(args):
 
         if target not in cache:
             print(f'Error: {target} not found in ref cache', file=sys.stderr)
+            sys.exit(1)
+
+        if not isinstance(cache[target], dict):
+            print(f'Error: ref cache entry for {target} is corrupt (expected dict)',
+                  file=sys.stderr)
             sys.exit(1)
 
         app_name = cache.get('_app', '')
@@ -226,7 +236,11 @@ def _cmd_key(args):
 
 def _cmd_windows(args):
     """Handle 'windows' subcommand."""
-    windows = tine.screenshot.list_windows()
+    try:
+        windows = tine.screenshot.list_windows()
+    except Exception as e:
+        print(f'Error: could not list windows: {e}', file=sys.stderr)
+        sys.exit(1)
     if not windows:
         print('No windows open.')
         return
@@ -247,7 +261,11 @@ def _cmd_focus(args):
     if not args.app:
         print('Error: app name cannot be empty', file=sys.stderr)
         sys.exit(1)
-    windows = tine.screenshot.list_windows()
+    try:
+        windows = tine.screenshot.list_windows()
+    except Exception as e:
+        print(f'Error: could not list windows: {e}', file=sys.stderr)
+        sys.exit(1)
     app_lower = args.app.lower()
 
     # Try wm_class substring match first
@@ -288,9 +306,12 @@ def _cmd_describe(args):
     # data (post-RSP A integration), extract from the dict directly instead.
     app_name = ''
     if tree_text:
-        m = re.match(r"""application\s+['"]([^'"]*)['"]""", tree_text)
+        # re.search (not match) handles leading whitespace/newlines.
+        # Backreference (?P=q) ensures closing quote matches opening quote,
+        # allowing apostrophes in double-quoted names and vice-versa.
+        m = re.search(r"""application\s+(?P<q>['"])(?P<name>.*?)(?P=q)""", tree_text)
         if m:
-            app_name = m.group(1)
+            app_name = m.group('name')
     ref_cache['_app'] = app_name
     tine.refs.save_ref_cache(ref_cache, _ref_cache_path())
 

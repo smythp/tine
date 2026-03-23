@@ -6,6 +6,7 @@ elements. The ref cache maps ref IDs to {role, name, bbox} for lookup.
 
 import json
 import os
+import tempfile
 
 INT_MIN = -2147483648
 
@@ -35,9 +36,19 @@ def bbox_center(bbox):
 
 
 def save_ref_cache(cache, path):
-    """Write ref cache to JSON file."""
-    with open(path, 'w') as f:
-        json.dump(cache, f)
+    """Write ref cache to JSON file atomically (write-then-rename)."""
+    dir_path = os.path.dirname(path) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(cache, f)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def load_ref_cache(path):
