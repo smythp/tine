@@ -19,9 +19,29 @@ import tine.screenshot
 import tine.tree
 
 
+_ALLOWED_CACHE_DIRS = (
+    '/tmp',
+    os.path.expanduser('~/.cache/tine'),
+)
+
+
 def _ref_cache_path():
-    """Return path for the ref cache file."""
-    return os.environ.get('TINE_REF_CACHE', '/tmp/tine-refs.json')
+    """Return path for the ref cache file.
+
+    Validates TINE_REF_CACHE is under an allowed directory to prevent
+    arbitrary file writes via environment variable injection.
+    """
+    path = os.environ.get('TINE_REF_CACHE', '/tmp/tine-refs.json')
+    # Resolve to absolute path (also strips null bytes on Linux)
+    resolved = os.path.realpath(os.path.abspath(path))
+    for allowed in _ALLOWED_CACHE_DIRS:
+        allowed_abs = os.path.realpath(os.path.abspath(allowed))
+        if resolved.startswith(allowed_abs + os.sep) or resolved == allowed_abs:
+            return resolved
+    raise ValueError(
+        f'TINE_REF_CACHE path "{path}" is not under an allowed directory '
+        f'({", ".join(_ALLOWED_CACHE_DIRS)})'
+    )
 
 
 def _walk_atspi(app=None):
@@ -70,17 +90,23 @@ def _resolve_window_offset(app_name):
 
     app_lower = app_name.lower()
 
+    def _safe_coord(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return 0
+
     # Try wm_class substring match first
     for w in windows:
         wm_class = w.get('wm_class', '')
         if app_lower in wm_class.lower():
-            return (w.get('x', 0), w.get('y', 0))
+            return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
 
     # Fall back to title substring match
     for w in windows:
         title = w.get('title', '')
         if app_lower in title.lower():
-            return (w.get('x', 0), w.get('y', 0))
+            return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
 
     print(f'Warning: no window match for "{app_name}" — using offset (0, 0)',
           file=sys.stderr)
@@ -126,7 +152,7 @@ def _cmd_screenshot(args):
     if args.annotate:
         cache = tine.refs.load_ref_cache(_ref_cache_path())
         # Only annotate if there are actual refs (not just _app or empty)
-        real_refs = {k: v for k, v in cache.items() if k != '_app'}
+        real_refs = {k: v for k, v in cache.items() if k != '_app'} if cache else {}
         if real_refs:
             app_name = cache.get('_app', '')
             offset = _resolve_window_offset(app_name)
@@ -135,7 +161,9 @@ def _cmd_screenshot(args):
             adjusted = {}
             for ref_id, ref_data in real_refs.items():
                 adjusted_data = copy.deepcopy(ref_data)
-                bbox = adjusted_data.get('bbox', {})
+                bbox = adjusted_data.get('bbox') or {}
+                # Write bbox back in case it was None or missing
+                adjusted_data['bbox'] = bbox
                 bbox['x'] = bbox.get('x', 0) + offset[0]
                 bbox['y'] = bbox.get('y', 0) + offset[1]
                 adjusted[ref_id] = adjusted_data
@@ -210,6 +238,9 @@ def _cmd_windows(args):
 
 def _cmd_focus(args):
     """Handle 'focus' subcommand."""
+    if not args.app:
+        print('Error: app name cannot be empty', file=sys.stderr)
+        sys.exit(1)
     windows = tine.screenshot.list_windows()
     app_lower = args.app.lower()
 
@@ -242,8 +273,8 @@ def _cmd_describe(args):
     # Format output first, before mutating ref_cache with _app
     output = tine.describe.format_for_agent(result)
 
-    # Save ref cache with _app metadata
-    ref_cache = result.get('ref_cache', {})
+    # Save ref cache with _app metadata (copy to avoid mutating describe()'s result)
+    ref_cache = dict(result.get('ref_cache') or {})
     tree_text = result.get('tree', '')
 
     # Extract app name from tree text (first line: "application 'Name'").
