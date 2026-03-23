@@ -108,6 +108,9 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
     Returns:
         Path to the annotated image.
     """
+    if scale <= 0:
+        raise ValueError(f'Scale must be positive, got {scale}')
+
     if output_path is None:
         output_path = image_path
 

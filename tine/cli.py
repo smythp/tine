@@ -160,6 +160,9 @@ def _cmd_screenshot(args):
             # Create adjusted copy with screen coords
             adjusted = {}
             for ref_id, ref_data in real_refs.items():
+                if not isinstance(ref_data, dict):
+                    # Corrupt/null cache entry — skip rather than crash
+                    continue
                 adjusted_data = copy.deepcopy(ref_data)
                 bbox = adjusted_data.get('bbox') or {}
                 # Write bbox back in case it was None or missing
@@ -196,8 +199,11 @@ def _cmd_click(args):
             kwargs['double'] = True
         tine.input.click_ref(target, cache, **kwargs)
 
-    # Check if target is coordinates (x,y pattern)
-    elif re.match(r'^\d+,\d+$', target):
+    # Check if target is coordinates (x,y pattern) — ASCII flag ensures \d
+    # matches only [0-9], excluding Unicode digit codepoints that pass the
+    # regex but cause int() to raise ValueError. Negative values are allowed
+    # for multi-monitor setups where the origin may not be top-left of all displays.
+    elif re.match(r'^-?\d+,-?\d+$', target, re.ASCII):
         parts = target.split(',')
         x, y = int(parts[0]), int(parts[1])
         tine.input.click(x, y, button=args.button, double=args.double)
@@ -282,7 +288,7 @@ def _cmd_describe(args):
     # data (post-RSP A integration), extract from the dict directly instead.
     app_name = ''
     if tree_text:
-        m = re.match(r"application\s+'([^']*)'", tree_text)
+        m = re.match(r"""application\s+['"]([^'"]*)['"]""", tree_text)
         if m:
             app_name = m.group(1)
     ref_cache['_app'] = app_name
