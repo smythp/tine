@@ -67,6 +67,12 @@ def _walk_atspi(app=None):
         raise RuntimeError('AT-SPI2 walker timed out after 30s')
     if result.returncode != 0:
         raise RuntimeError(f'AT-SPI2 walker failed: {result.stderr.strip()}')
+    _ATSPI_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+    if len(result.stdout) > _ATSPI_MAX_BYTES:
+        raise RuntimeError(
+            f'AT-SPI2 walker output exceeds 50 MB ({len(result.stdout)} bytes); '
+            'aborting to prevent OOM'
+        )
     try:
         parsed = json.loads(result.stdout)
     except json.JSONDecodeError as e:
