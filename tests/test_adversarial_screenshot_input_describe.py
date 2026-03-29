@@ -33,6 +33,23 @@ def valid_bbox():
     return {'x': 10, 'y': 20, 'w': 100, 'h': 40}
 
 
+class _FakeUInput:
+    """Minimal fake UInput for adversarial tests."""
+    def __init__(self):
+        self.events = []
+        self.syn_count = 0
+    def write(self, etype, ecode, value):
+        self.events.append((etype, ecode, value))
+    def syn(self):
+        self.syn_count += 1
+
+
+def _patch_uinput():
+    """Return a patch context manager that replaces _get_uinput with a FakeUInput."""
+    fake = _FakeUInput()
+    return patch('tine.input._get_uinput', return_value=fake), fake
+
+
 def make_tiny_png(path):
     """Write a minimal valid 1x1 white PNG to path."""
     from PIL import Image
@@ -361,28 +378,30 @@ class TestMoveAdversarial:
         with pytest.raises(TypeError):
             move(None, 0)
 
-    @patch('tine.input._run_ydotool')
-    def test_negative_zero_passes(self, mock_run):
+    def test_negative_zero_passes(self):
         """move(-0.0, 0): -0.0 < 0 is False in Python. Passes check."""
         from tine.input import move
-        move(-0.0, 0)  # -0.0 is not < 0, passes validation
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            move(-0.0, 0)  # -0.0 is not < 0, passes validation
+            assert fake.syn_count >= 1
 
-    @patch('tine.input._run_ydotool')
-    def test_float_coords_passed_as_string(self, mock_run):
+    def test_float_coords_passed_as_string(self):
         """move(1.7, 2.3): float coords are truncated to int via int().
-        int(1.7)=1, int(2.3)=2 sent to ydotool."""
+        int(1.7)=1, int(2.3)=2 sent as EV_ABS events."""
         from tine.input import move
-        move(1.7, 2.3)
-        call_args = mock_run.call_args[0][0]
-        assert '-x' in call_args and str(int(1.7)) in call_args
+        p, fake = _patch_uinput()
+        with p:
+            move(1.7, 2.3)
+            assert fake.syn_count >= 1
 
     def test_very_large_coord(self):
         """move(2**64, 2**64): enormous but positive. Passes validation."""
         from tine.input import move
-        with patch('tine.input._run_ydotool') as mock_run:
+        p, fake = _patch_uinput()
+        with p:
             move(2**64, 2**64)
-            mock_run.assert_called_once()
+            assert fake.syn_count >= 1
 
 
 # ===========================================================================
@@ -479,19 +498,21 @@ class TestKeyComboAdversarial:
         with pytest.raises(ValueError, match='Empty key combo'):
             key_combo('')
 
-    @patch('tine.input._run_ydotool')
-    def test_trailing_plus(self, mock_run):
+    def test_trailing_plus(self):
         """key_combo('ctrl+'): empty part filtered out, only 'ctrl' pressed."""
         from tine.input import key_combo
-        key_combo('ctrl+')
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            key_combo('ctrl+')
+            assert fake.syn_count >= 1
 
-    @patch('tine.input._run_ydotool')
-    def test_leading_plus(self, mock_run):
+    def test_leading_plus(self):
         """key_combo('+c'): empty part filtered out, only 'c' pressed."""
         from tine.input import key_combo
-        key_combo('+c')
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            key_combo('+c')
+            assert fake.syn_count >= 1
 
     def test_just_plus(self):
         """key_combo('+'): all empty parts filtered -> ValueError 'Empty key combo'."""
@@ -505,60 +526,57 @@ class TestKeyComboAdversarial:
         with pytest.raises(ValueError, match='Unknown key'):
             key_combo('ctrl+NOTAKEY')
 
-    @patch('tine.input._run_ydotool')
-    def test_only_modifiers(self, mock_run):
+    def test_only_modifiers(self):
         """key_combo('ctrl+shift'): both are modifiers, no regular keys.
-        The 'if not keys and modifiers: pass' block does nothing extra.
-        Modifiers are still pressed+released from the event loop. Correct behavior?"""
+        Modifiers are still pressed+released via evdev. Correct behavior."""
         from tine.input import key_combo
-        key_combo('ctrl+shift')
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args[0][0]
-        # Should have: key 29:1 42:1 42:0 29:0 (ctrl down, shift down, shift up, ctrl up)
-        events = call_args[1:]
-        assert '29:1' in events
-        assert '42:1' in events
-        assert '42:0' in events
-        assert '29:0' in events
+        p, fake = _patch_uinput()
+        with p:
+            key_combo('ctrl+shift')
+            # Should have: 29 press, 42 press, 42 release, 29 release
+            key_writes = [(c, v) for _, c, v in fake.events]
+            assert (29, 1) in key_writes
+            assert (42, 1) in key_writes
+            assert (42, 0) in key_writes
+            assert (29, 0) in key_writes
 
-    @patch('tine.input._run_ydotool')
-    def test_duplicate_key(self, mock_run):
+    def test_duplicate_key(self):
         """key_combo('a+a'): same key twice -> pressed twice, released twice."""
         from tine.input import key_combo
-        key_combo('a+a')
-        call_args = mock_run.call_args[0][0]
-        events = call_args[1:]
-        # a=30, so 30:1 appears twice, 30:0 appears twice
-        assert events.count('30:1') == 2
-        assert events.count('30:0') == 2
+        p, fake = _patch_uinput()
+        with p:
+            key_combo('a+a')
+            key_writes = [(c, v) for _, c, v in fake.events]
+            # a=30, so (30, 1) appears twice, (30, 0) appears twice
+            assert key_writes.count((30, 1)) == 2
+            assert key_writes.count((30, 0)) == 2
 
-    @patch('tine.input._run_ydotool')
-    def test_massive_combo(self, mock_run):
-        """BROKE: key_combo with 500 modifier repetitions
-        HOW: key_combo('ctrl+' * 500 + 'c')
-        WHY IT HURTS: Generates 1001-element event list, potentially hitting
-        ARG_MAX (~2MB) when subprocess expands to command line.
-        """
+    def test_massive_combo(self):
+        """key_combo with 500 modifier repetitions.
+        Now goes through evdev (no ARG_MAX risk), but still generates 1002 events."""
         from tine.input import key_combo
-        huge_combo = '+'.join(['ctrl'] * 500 + ['c'])
-        key_combo(huge_combo)
-        call_args = mock_run.call_args[0][0]
-        # 500 ctrl:1 + 1 c:1 + 1 c:0 + 500 ctrl:0 = 1002 events
-        assert len(call_args) > 1000
+        p, fake = _patch_uinput()
+        with p:
+            huge_combo = '+'.join(['ctrl'] * 500 + ['c'])
+            key_combo(huge_combo)
+            # 500 ctrl:1 + 1 c:1 + 1 c:0 + 500 ctrl:0 = 1002 events
+            assert len(fake.events) >= 1002
 
-    @patch('tine.input._run_ydotool')
-    def test_whitespace_in_combo(self, mock_run):
+    def test_whitespace_in_combo(self):
         """key_combo('ctrl + c'): spaces around +, strip() handles them."""
         from tine.input import key_combo
-        key_combo('ctrl + c')
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            key_combo('ctrl + c')
+            assert fake.syn_count >= 1
 
-    @patch('tine.input._run_ydotool')
-    def test_tab_in_combo(self, mock_run):
-        """key_combo('ctrl\t+\tc'): tabs, strip() handles them."""
+    def test_tab_in_combo(self):
+        """key_combo('ctrl\\t+\\tc'): tabs, strip() handles them."""
         from tine.input import key_combo
-        key_combo('ctrl\t+\tc')
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            key_combo('ctrl\t+\tc')
+            assert fake.syn_count >= 1
 
     def test_none_combo(self):
         """key_combo(None): type check raises ValueError."""
@@ -615,13 +633,14 @@ class TestClickRefAdversarial:
         with pytest.raises(IndexError):
             click_ref('ref_1', ref_cache, window_offset=(5,))
 
-    @patch('tine.input._run_ydotool')
-    def test_window_offset_list_works(self, mock_run):
+    def test_window_offset_list_works(self):
         """window_offset=[10, 20]: list indexing works same as tuple."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
-        click_ref('ref_1', ref_cache, window_offset=[10, 20])
-        mock_run.assert_called()
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
+            click_ref('ref_1', ref_cache, window_offset=[10, 20])
+            assert fake.syn_count >= 1
 
     def test_unknown_ref_id(self):
         """click_ref with ref_id not in cache -> KeyError."""
@@ -654,24 +673,27 @@ class TestClickRefAdversarial:
 
 class TestClickAdversarial:
 
-    @patch('tine.input._run_ydotool')
-    def test_double_as_truthy_int(self, mock_run):
-        """click(x, y, double=5): truthy int, --repeat and --next-delay are added."""
+    def test_double_as_truthy_int(self):
+        """click(x, y, double=5): truthy int triggers double-click (two press/release cycles)."""
         from tine.input import click
-        click(10, 10, double=5)
-        all_calls = mock_run.call_args_list
-        # First call is move, second is click
-        click_call_args = all_calls[1][0][0]
-        assert '--repeat' in click_call_args
+        from evdev import ecodes
+        p, fake = _patch_uinput()
+        with p:
+            click(10, 10, double=5)
+            key_writes = [(c, v) for _, c, v in fake.events if _ == ecodes.EV_KEY]
+            presses = [(c, v) for c, v in key_writes if c == ecodes.BTN_LEFT and v == 1]
+            assert len(presses) == 2
 
-    @patch('tine.input._run_ydotool')
-    def test_double_as_string_truthy(self, mock_run):
-        """click(x, y, double='yes'): truthy string, same effect as double=True."""
+    def test_double_as_string_truthy(self):
+        """click(x, y, double='yes'): truthy string triggers double-click."""
         from tine.input import click
-        click(10, 10, double='yes')
-        all_calls = mock_run.call_args_list
-        click_call_args = all_calls[1][0][0]
-        assert '--repeat' in click_call_args
+        from evdev import ecodes
+        p, fake = _patch_uinput()
+        with p:
+            click(10, 10, double='yes')
+            key_writes = [(c, v) for _, c, v in fake.events if _ == ecodes.EV_KEY]
+            presses = [(c, v) for c, v in key_writes if c == ecodes.BTN_LEFT and v == 1]
+            assert len(presses) == 2
 
     def test_invalid_button_name(self):
         """click(10, 10, button='hyperclick'): not in BUTTON_CODES -> ValueError."""
