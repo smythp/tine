@@ -130,19 +130,32 @@ def _focus_window(window):
 
     Raises RuntimeError if gdbus fails or Shell.Eval reports an error.
     """
-    title = window.get('title', '') or window.get('wm_class', '')
-    if not title:
+    title = window.get('title', '')
+    wm_class = window.get('wm_class', '')
+    if title:
+        match_value = title
+        js_getter = 'get_title'
+    elif wm_class:
+        match_value = wm_class
+        js_getter = 'get_wm_class'
+    else:
         raise RuntimeError('_focus_window: window has no title or wm_class to match on')
 
-    # Escape backslashes then single-quotes so the title is safe inside the
-    # JS single-quoted string literal we embed in the shell argument.
-    escaped = title.replace('\\', '\\\\').replace("'", "\\'")
+    # Escape for safe embedding inside a JS single-quoted string literal.
+    # Order matters: backslashes first, then characters that need \-escaping.
+    escaped = match_value.replace('\\', '\\\\')
+    escaped = escaped.replace("'", "\\'")
+    escaped = escaped.replace('\n', '\\n')
+    escaped = escaped.replace('\r', '\\r')
+    escaped = escaped.replace('\0', '\\0')
+    escaped = escaped.replace('\u2028', '\\u2028')
+    escaped = escaped.replace('\u2029', '\\u2029')
 
     js = (
-        "global.get_window_actors().forEach(function(a) {"
+        "global.get_window_actors().some(function(a) {"
         " var w = a.get_meta_window();"
-        f" if (w.get_title() === '{escaped}')"
-        " w.activate(global.get_current_time());"
+        f" if (w.{js_getter}() === '{escaped}')"
+        " { w.activate(global.get_current_time()); return true; }"
         "});"
     )
 
