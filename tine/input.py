@@ -1,18 +1,36 @@
-"""Input injection via ydotool: click, type, key combos, mouse movement.
+"""Input injection via python-evdev (uinput) for mouse and ydotool for typing.
 
-All input goes through ydotool which talks to ydotoold via /dev/uinput.
-No sudo needed — ydotoold runs as a user service.
+Mouse movement and clicking use direct EV_ABS writes to /dev/uinput via evdev.
+Text typing still uses ydotool (reliable for text, only mouse positioning was broken).
+Key combos use evdev key events directly.
+
+The UInput device is created lazily on first use and cached for the process lifetime.
+Device creation takes ~0.5s for the compositor to recognize it.
 """
 
+import os
 import subprocess
+import time
+
+import evdev
+from evdev import UInput, ecodes, AbsInfo
 
 from tine.refs import bbox_center, load_ref_cache
 
-# Button codes for ydotool click (down + up)
+# Absolute axis range — uinput maps [0, ABS_MAX] to the full screen
+ABS_MAX = 65535
+
+# Display configuration from environment (archgnome defaults: 1920x1080 physical, 1.25x scale)
+PHYSICAL_WIDTH = int(os.environ.get('TINE_PHYSICAL_WIDTH', '1920'))
+PHYSICAL_HEIGHT = int(os.environ.get('TINE_PHYSICAL_HEIGHT', '1080'))
+SCALE_FACTOR = float(os.environ.get('TINE_SCALE', '1.0'))
+SHADOW_OFFSET = int(os.environ.get('TINE_SHADOW_OFFSET', '25'))
+
+# Button mapping for evdev
 BUTTON_CODES = {
-    'left': '0xC0',
-    'right': '0xC1',
-    'middle': '0xC2',
+    'left': ecodes.BTN_LEFT,
+    'right': ecodes.BTN_RIGHT,
+    'middle': ecodes.BTN_MIDDLE,
 }
 
 # Linux keycodes from input-event-codes.h
@@ -56,16 +74,54 @@ KEYCODES = {
     'semicolon': 39, 'apostrophe': 40,
     'grave': 41, 'backslash': 43,
     'comma': 51, 'dot': 52, 'slash': 53,
-    'plus': 13,  # KEY_EQUAL — plus is shift+equal but ydotool sends the keycode
+    'plus': 13,  # KEY_EQUAL — plus is shift+equal but we send the keycode
 }
 
 # Keys that are modifiers (pressed first, released last)
 MODIFIER_NAMES = {'ctrl', 'lctrl', 'rctrl', 'shift', 'lshift', 'rshift',
                    'alt', 'lalt', 'ralt', 'super', 'meta'}
 
+# Cached UInput device — created lazily on first use
+_uinput_device = None
+
+
+def _get_uinput():
+    """Get or create the cached UInput device.
+
+    The device is created once and reused. Creation takes ~0.5s for the
+    compositor to recognize the new input device.
+    """
+    global _uinput_device
+    if _uinput_device is not None:
+        return _uinput_device
+
+    capabilities = {
+        ecodes.EV_ABS: [
+            (ecodes.ABS_X, AbsInfo(0, 0, ABS_MAX, 0, 0, 0)),
+            (ecodes.ABS_Y, AbsInfo(0, 0, ABS_MAX, 0, 0, 0)),
+        ],
+        ecodes.EV_KEY: [
+            ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
+        ] + [code for code in KEYCODES.values()],
+    }
+    _uinput_device = UInput(capabilities, name='tine-input')
+    # Give compositor time to recognize the new device
+    time.sleep(0.3)
+    return _uinput_device
+
+
+def _physical_to_abs(phys_x, phys_y):
+    """Convert physical screen coordinates to absolute uinput values.
+
+    The uinput absolute axis maps [0, ABS_MAX] to the full physical display.
+    """
+    abs_x = int(phys_x * ABS_MAX / PHYSICAL_WIDTH)
+    abs_y = int(phys_y * ABS_MAX / PHYSICAL_HEIGHT)
+    return abs_x, abs_y
+
 
 def _run_ydotool(args):
-    """Run a ydotool command."""
+    """Run a ydotool command (used only for text typing)."""
     cmd = ['ydotool'] + args
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
     if result.returncode != 0:
@@ -74,7 +130,7 @@ def _run_ydotool(args):
 
 
 def move(x, y):
-    """Move mouse to absolute screen position.
+    """Move mouse to absolute screen position (physical pixel coordinates).
 
     Args:
         x: X pixel coordinate (non-negative).
@@ -82,7 +138,7 @@ def move(x, y):
 
     Raises:
         ValueError: If coordinates are negative.
-        RuntimeError: If ydotool fails.
+        TypeError: If coordinates are not numeric.
     """
     if not isinstance(x, (int, float)):
         raise TypeError(f'x must be numeric, got {type(x).__name__}')
@@ -91,11 +147,16 @@ def move(x, y):
     x, y = int(x), int(y)
     if x < 0 or y < 0:
         raise ValueError(f'Coordinates must be non-negative: ({x}, {y})')
-    _run_ydotool(['mousemove', '-a', '-x', str(x), '-y', str(y)])
+
+    abs_x, abs_y = _physical_to_abs(x, y)
+    ui = _get_uinput()
+    ui.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
+    ui.write(ecodes.EV_ABS, ecodes.ABS_Y, abs_y)
+    ui.syn()
 
 
 def click(x, y, button='left', double=False):
-    """Click at absolute screen position.
+    """Click at absolute screen position (physical pixel coordinates).
 
     Args:
         x: X pixel coordinate.
@@ -105,35 +166,47 @@ def click(x, y, button='left', double=False):
 
     Raises:
         ValueError: If button is invalid.
-        RuntimeError: If ydotool fails.
     """
     if button not in BUTTON_CODES:
         raise ValueError(f'Invalid button: {button}. Must be one of: {", ".join(BUTTON_CODES)}')
 
     move(x, y)
 
-    click_args = ['click']
-    if double:
-        click_args.extend(['--repeat', '2', '--next-delay', '50'])
-    click_args.append(BUTTON_CODES[button])
+    ui = _get_uinput()
+    btn_code = BUTTON_CODES[button]
 
-    _run_ydotool(click_args)
+    # Press and release
+    ui.write(ecodes.EV_KEY, btn_code, 1)
+    ui.syn()
+    ui.write(ecodes.EV_KEY, btn_code, 0)
+    ui.syn()
+
+    if double:
+        time.sleep(0.05)  # 50ms between clicks
+        ui.write(ecodes.EV_KEY, btn_code, 1)
+        ui.syn()
+        ui.write(ecodes.EV_KEY, btn_code, 0)
+        ui.syn()
 
 
 def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=False):
     """Click at the center of a ref's bounding box.
 
+    Applies the full coordinate pipeline:
+      logical = window_pos + shadow_offset + element_window_coords
+      physical = logical * scale_factor
+      abs_value = physical * 65535 / physical_display_dimension
+
     Args:
         ref_id: Ref ID (e.g. 'ref_1').
         ref_cache: Dict mapping ref_id -> {role, name, bbox}, or path to cache file.
-        window_offset: (x, y) offset of the window on screen.
+        window_offset: (x, y) position of the window on screen (from list_windows()).
         button: 'left', 'right', or 'middle'.
         double: If True, double-click.
 
     Raises:
         KeyError: If ref_id not in cache.
         ValueError: If ref has no bbox or bbox is invalid.
-        RuntimeError: If ydotool fails.
     """
     if isinstance(ref_cache, str):
         ref_cache = load_ref_cache(ref_cache)
@@ -148,14 +221,26 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
     if center is None:
         raise ValueError(f'Ref {ref_id} has invalid bbox: {ref["bbox"]}')
 
-    screen_x = window_offset[0] + center[0]
-    screen_y = window_offset[1] + center[1]
+    # Element coordinates are relative to the window content area.
+    # Window offset is the surface position (includes CSD shadow).
+    # Shadow offset accounts for the CSD shadow margin.
+    shadow = SHADOW_OFFSET
 
-    click(screen_x, screen_y, button=button, double=double)
+    # Logical screen coordinates (before scaling)
+    screen_logical_x = window_offset[0] + shadow + center[0]
+    screen_logical_y = window_offset[1] + shadow + center[1]
+
+    # Physical screen coordinates (after scaling)
+    screen_physical_x = screen_logical_x * SCALE_FACTOR
+    screen_physical_y = screen_logical_y * SCALE_FACTOR
+
+    click(int(screen_physical_x), int(screen_physical_y), button=button, double=double)
 
 
 def type_text(text, delay_ms=None):
     """Type text via ydotool.
+
+    ydotool type is reliable for text input — only mouse positioning was broken.
 
     Args:
         text: String to type.
@@ -178,7 +263,7 @@ def type_text(text, delay_ms=None):
 
 
 def key_combo(combo_str):
-    """Press a key combination.
+    """Press a key combination via evdev.
 
     Parses human-readable combo strings like 'ctrl+c', 'alt+f4', 'ctrl+shift+t'.
     Modifiers are pressed first in order, then the key, then all released in reverse.
@@ -188,7 +273,6 @@ def key_combo(combo_str):
 
     Raises:
         ValueError: If any key name is unrecognized.
-        RuntimeError: If ydotool fails.
     """
     if not isinstance(combo_str, str):
         raise ValueError(f'combo_str must be a string, got {type(combo_str).__name__}')
@@ -210,15 +294,15 @@ def key_combo(combo_str):
         else:
             keys.append(KEYCODES[part])
 
-    # Build keycode sequence: press modifiers, press keys, release keys, release modifiers (reverse)
-    events = []
-    for code in modifiers:
-        events.append(f'{code}:1')
-    for code in keys:
-        events.append(f'{code}:1')
-    for code in reversed(keys):
-        events.append(f'{code}:0')
-    for code in reversed(modifiers):
-        events.append(f'{code}:0')
+    ui = _get_uinput()
 
-    _run_ydotool(['key'] + events)
+    # Press modifiers, press keys, release keys (reverse), release modifiers (reverse)
+    for code in modifiers:
+        ui.write(ecodes.EV_KEY, code, 1)
+    for code in keys:
+        ui.write(ecodes.EV_KEY, code, 1)
+    for code in reversed(keys):
+        ui.write(ecodes.EV_KEY, code, 0)
+    for code in reversed(modifiers):
+        ui.write(ecodes.EV_KEY, code, 0)
+    ui.syn()
