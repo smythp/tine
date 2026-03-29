@@ -158,7 +158,7 @@ def _cmd_tree(args):
 
 def _cmd_screenshot(args):
     """Handle 'screenshot' subcommand."""
-    path = tine.screenshot.capture()
+    path = tine.screenshot.capture(output_path=args.output)
 
     if args.annotate:
         cache = tine.refs.load_ref_cache(_ref_cache_path())
@@ -339,6 +339,8 @@ def main(argv=None):
                            help='Add Set-of-Mark overlays')
     ss_parser.add_argument('--scale', type=float, default=1.0,
                            help='Display scale factor')
+    ss_parser.add_argument('--output', '-o', default=None,
+                           help='Output path for screenshot PNG')
 
     # click
     click_parser = subparsers.add_parser('click', help='Click by ref or coordinates')
