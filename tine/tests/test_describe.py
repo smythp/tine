@@ -10,7 +10,6 @@ The output is structured for LLM consumption.
 
 import json
 import os
-import subprocess
 import tempfile
 
 import pytest
