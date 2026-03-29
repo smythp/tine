@@ -729,11 +729,11 @@ class TestFocusCommand:
 
 
 # ---------------------------------------------------------------------------
-# _focus_window implementation — D-Bus via Shell.Eval
+# _focus_window implementation — extension FocusWindow D-Bus method
 # ---------------------------------------------------------------------------
 
 class TestFocusWindowImpl:
-    """_focus_window(window) — calls gdbus Shell.Eval to activate window."""
+    """_focus_window(window) — calls extension FocusWindow D-Bus method."""
 
     def _make_window(self, title='Firefox', wm_class='firefox'):
         return {
@@ -744,73 +744,77 @@ class TestFocusWindowImpl:
             'focused': False,
         }
 
-    def test_calls_gdbus_shell_eval(self, monkeypatch):
-        """Calls gdbus with org.gnome.Shell.Eval and window title in JS."""
+    def test_calls_focus_window_method(self, monkeypatch):
+        """Calls _gdbus_call('FocusWindow', title) to activate window."""
         calls = []
 
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
+        def fake_gdbus(method, *args):
+            calls.append((method, args))
+            return '(true,)'
 
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, '_gdbus_call', fake_gdbus)
 
         import tine.cli as cli_mod
         cli_mod._focus_window(self._make_window('Firefox'))
 
         assert len(calls) == 1
-        cmd = calls[0]
-        assert 'gdbus' in cmd[0]
-        assert 'org.gnome.Shell.Eval' in ' '.join(cmd)
-        # JS contains the window title
-        js_arg = cmd[-1]
-        assert 'Firefox' in js_arg
-        assert 'activate' in js_arg
+        assert calls[0] == ('FocusWindow', ('Firefox',))
 
-    def test_title_single_quote_escaped(self, monkeypatch):
-        """Single quotes in titles are escaped so the JS string is valid."""
+    def test_uses_title_as_query(self, monkeypatch):
+        """Passes title to FocusWindow when both title and wm_class are present."""
         calls = []
 
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
+        def fake_gdbus(method, *args):
+            calls.append((method, args))
+            return '(true,)'
 
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window(self._make_window(title="O'Brien's Terminal"))
-
-        js_arg = calls[0][-1]
-        # Raw single quote must NOT appear unescaped inside the JS string literal
-        assert "O\\'Brien\\'s Terminal" in js_arg
-
-    def test_gdbus_nonzero_exit_raises(self, monkeypatch):
-        """Non-zero gdbus exit raises RuntimeError."""
-        def fake_run(cmd, **kwargs):
-            return type('R', (), {'returncode': 1, 'stdout': '', 'stderr': 'No such name'})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, '_gdbus_call', fake_gdbus)
 
         import tine.cli as cli_mod
-        with pytest.raises(RuntimeError, match='Shell.Eval failed'):
-            cli_mod._focus_window(self._make_window())
+        cli_mod._focus_window(self._make_window(title='Firefox', wm_class='firefox'))
 
-    def test_shell_eval_false_raises(self, monkeypatch):
-        """Shell.Eval returning (false, ...) raises RuntimeError."""
-        def fake_run(cmd, **kwargs):
-            return type('R', (), {
-                'returncode': 0,
-                'stdout': "(false, 'evaluation disabled')\n",
-                'stderr': '',
-            })()
+        assert calls[0][1] == ('Firefox',)
 
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
+    def test_falls_back_to_wm_class_when_no_title(self, monkeypatch):
+        """Uses wm_class as query when title is empty."""
+        calls = []
+
+        def fake_gdbus(method, *args):
+            calls.append((method, args))
+            return '(true,)'
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, '_gdbus_call', fake_gdbus)
+
+        import tine.cli as cli_mod
+        cli_mod._focus_window({'title': '', 'wm_class': 'gnome-terminal-server'})
+
+        assert calls[0][1] == ('gnome-terminal-server',)
+
+    def test_focus_window_false_raises(self, monkeypatch):
+        """FocusWindow returning (false, ...) raises RuntimeError."""
+        def fake_gdbus(method, *args):
+            return '(false,)'
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, '_gdbus_call', fake_gdbus)
 
         import tine.cli as cli_mod
         with pytest.raises(RuntimeError, match='false'):
+            cli_mod._focus_window(self._make_window())
+
+    def test_dbus_error_raises(self, monkeypatch):
+        """RuntimeError from _gdbus_call propagates out of _focus_window."""
+        def fake_gdbus(method, *args):
+            raise RuntimeError('D-Bus call FocusWindow failed: No such name')
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, '_gdbus_call', fake_gdbus)
+
+        import tine.cli as cli_mod
+        with pytest.raises(RuntimeError):
             cli_mod._focus_window(self._make_window())
 
     def test_gdbus_not_found_raises(self, monkeypatch):
@@ -839,136 +843,6 @@ class TestFocusWindowImpl:
         with pytest.raises(RuntimeError, match='timed out'):
             cli_mod._focus_window(self._make_window())
 
-    def test_falls_back_to_wm_class_when_no_title(self, monkeypatch):
-        """Uses wm_class in JS with get_wm_class() when title is empty."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window({'title': '', 'wm_class': 'gnome-terminal-server'})
-
-        js_arg = calls[0][-1]
-        assert 'gnome-terminal-server' in js_arg
-        # Must use get_wm_class(), not get_title(), when matching by wm_class
-        assert 'get_wm_class()' in js_arg
-        assert 'get_title()' not in js_arg
-
-    def test_title_with_newline_escaped(self, monkeypatch):
-        """Newlines in titles are escaped to \\n in the JS string literal."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window(self._make_window(title='Line1\nLine2'))
-
-        js_arg = calls[0][-1]
-        # Literal newline must NOT appear in the JS
-        assert '\n' not in js_arg
-        # Escaped form must be present
-        assert 'Line1\\nLine2' in js_arg
-
-    def test_title_with_carriage_return_escaped(self, monkeypatch):
-        """Carriage returns in titles are escaped to \\r."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window(self._make_window(title='before\rafter'))
-
-        js_arg = calls[0][-1]
-        assert '\r' not in js_arg
-        assert 'before\\rafter' in js_arg
-
-    def test_title_with_null_byte_escaped(self, monkeypatch):
-        """Null bytes in titles are escaped to \\0."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window(self._make_window(title='before\0after'))
-
-        js_arg = calls[0][-1]
-        assert '\0' not in js_arg
-        assert 'before\\0after' in js_arg
-
-    def test_title_with_backslash_and_quote_combined(self, monkeypatch):
-        r"""Backslash before quote: \' must become \\\'  (escaped backslash + escaped quote)."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        # Input: a window title containing a literal backslash followed by a single quote
-        cli_mod._focus_window(self._make_window(title="test\\'end"))
-
-        js_arg = calls[0][-1]
-        # The \ becomes \\ and the ' becomes \', so \' → \\\'
-        assert "\\\\\\'end" in js_arg
-
-    def test_uses_some_not_foreach(self, monkeypatch):
-        """JS uses some() for early return, not forEach."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window(self._make_window('Firefox'))
-
-        js_arg = calls[0][-1]
-        assert '.some(' in js_arg
-        assert 'return true' in js_arg
-
-    def test_title_match_uses_get_title(self, monkeypatch):
-        """When matching by title, JS uses get_title()."""
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            return type('R', (), {'returncode': 0, 'stdout': '(true, \'\')\n', 'stderr': ''})()
-
-        import subprocess
-        monkeypatch.setattr(subprocess, 'run', fake_run)
-
-        import tine.cli as cli_mod
-        cli_mod._focus_window(self._make_window(title='Firefox', wm_class='firefox'))
-
-        js_arg = calls[0][-1]
-        assert 'get_title()' in js_arg
-
     def test_no_title_or_wm_class_raises(self, monkeypatch):
         """Window with neither title nor wm_class raises RuntimeError."""
         import tine.cli as cli_mod
@@ -983,7 +857,7 @@ class TestFocusWindowImpl:
         import tine.cli as cli_mod
 
         def raising_focus(w):
-            raise RuntimeError('Shell.Eval disabled')
+            raise RuntimeError('FocusWindow failed')
 
         monkeypatch.setattr(cli_mod, '_focus_window', raising_focus)
 
@@ -991,7 +865,7 @@ class TestFocusWindowImpl:
             cli_mod.main(['focus', 'Settings'])
         assert exc_info.value.code != 0
         err = capsys.readouterr().err
-        assert 'Shell.Eval disabled' in err
+        assert 'FocusWindow failed' in err
 
 
 # ---------------------------------------------------------------------------
