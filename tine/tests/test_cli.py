@@ -1076,6 +1076,165 @@ class TestWindowOffsetResolution:
         err = capsys.readouterr().err
         assert 'window' in err.lower()
 
+    # --- Normalization tests (AT-SPI2 hyphens vs reverse-domain dots) -------
+
+    def _click_ref_calls_for(self, monkeypatch, tmp_path, app_name, windows):
+        """Helper: run 'click ref_1' with given _app and windows, return calls."""
+        ref_cache_path = str(tmp_path / 'refs.json')
+        _write_ref_cache(ref_cache_path, _make_ref_cache(app_name))
+        monkeypatch.setenv('TINE_REF_CACHE', ref_cache_path)
+
+        calls = []
+
+        def fake_click_ref(ref_id, ref_cache, window_offset=(0, 0),
+                           button='left', double=False):
+            calls.append({'window_offset': window_offset})
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'click_ref', fake_click_ref)
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'list_windows', lambda: windows)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['click', 'ref_1'])
+        return calls
+
+    def test_offset_atspi_hyphen_matches_reverse_domain_wm_class(
+            self, monkeypatch, tmp_path):
+        """AT-SPI2 'gnome-calculator' matches wm_class 'org.gnome.Calculator'."""
+        windows = [
+            {
+                'title': 'Calculator',
+                'wm_class': 'org.gnome.Calculator',
+                'app_id': 'org.gnome.Calculator',
+                'x': 300, 'y': 200, 'width': 400, 'height': 500,
+                'focused': True,
+            },
+        ]
+        calls = self._click_ref_calls_for(
+            monkeypatch, tmp_path, 'gnome-calculator', windows)
+        assert calls[0]['window_offset'] == (300, 200)
+
+    def test_offset_multiword_component_atspi_vs_camelcase_wm_class(
+            self, monkeypatch, tmp_path):
+        """'gnome-text-editor' matches 'org.gnome.TextEditor' (camelCase component)."""
+        windows = [
+            {
+                'title': 'Text Editor',
+                'wm_class': 'org.gnome.TextEditor',
+                'app_id': 'org.gnome.TextEditor',
+                'x': 50, 'y': 75, 'width': 800, 'height': 600,
+                'focused': True,
+            },
+        ]
+        calls = self._click_ref_calls_for(
+            monkeypatch, tmp_path, 'gnome-text-editor', windows)
+        assert calls[0]['window_offset'] == (50, 75)
+
+    def test_offset_simple_name_no_normalization_needed(
+            self, monkeypatch, tmp_path):
+        """'firefox' matches wm_class 'firefox' — no normalization required."""
+        windows = [
+            {
+                'title': 'Mozilla Firefox',
+                'wm_class': 'firefox',
+                'app_id': '',
+                'x': 0, 'y': 0, 'width': 1200, 'height': 800,
+                'focused': True,
+            },
+        ]
+        calls = self._click_ref_calls_for(
+            monkeypatch, tmp_path, 'firefox', windows)
+        assert calls[0]['window_offset'] == (0, 0)
+
+    def test_offset_gnome_shell_matches_reverse_domain_wm_class(
+            self, monkeypatch, tmp_path):
+        """'gnome-shell' matches wm_class 'org.gnome.Shell'."""
+        windows = [
+            {
+                'title': 'GNOME Shell',
+                'wm_class': 'org.gnome.Shell',
+                'app_id': 'org.gnome.Shell',
+                'x': 10, 'y': 20, 'width': 1920, 'height': 1080,
+                'focused': True,
+            },
+        ]
+        calls = self._click_ref_calls_for(
+            monkeypatch, tmp_path, 'gnome-shell', windows)
+        assert calls[0]['window_offset'] == (10, 20)
+
+    def test_offset_via_app_id_when_wm_class_absent(
+            self, monkeypatch, tmp_path):
+        """Falls through to app_id match when wm_class doesn't match."""
+        windows = [
+            {
+                'title': 'Calculator',
+                'wm_class': '',
+                'app_id': 'org.gnome.Calculator',
+                'x': 100, 'y': 150, 'width': 400, 'height': 500,
+                'focused': True,
+            },
+        ]
+        calls = self._click_ref_calls_for(
+            monkeypatch, tmp_path, 'gnome-calculator', windows)
+        assert calls[0]['window_offset'] == (100, 150)
+
+    def test_offset_none_app_name_returns_zero(self, monkeypatch, tmp_path, capsys):
+        """None _app (missing key) falls back to (0, 0) without crashing."""
+        import tine.cli as cli_mod
+        result = cli_mod._resolve_window_offset(None)
+        assert result == (0, 0)
+        err = capsys.readouterr().err
+        assert 'offset' in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# _normalize_app_name unit tests
+# ---------------------------------------------------------------------------
+
+class TestNormalizeAppName:
+    """Unit tests for _normalize_app_name() normalization helper."""
+
+    def _norm(self, name):
+        import tine.cli as cli_mod
+        return cli_mod._normalize_app_name(name)
+
+    def test_atspi_hyphen_name(self):
+        assert self._norm('gnome-calculator') == 'gnomecalculator'
+
+    def test_reverse_domain_wm_class(self):
+        assert self._norm('org.gnome.Calculator') == 'gnomecalculator'
+
+    def test_both_normalize_to_same(self):
+        assert self._norm('gnome-calculator') == self._norm('org.gnome.Calculator')
+
+    def test_multiword_camelcase_wm_class(self):
+        assert self._norm('org.gnome.TextEditor') == 'gnometexteditor'
+
+    def test_multiword_hyphenated_atspi(self):
+        assert self._norm('gnome-text-editor') == 'gnometexteditor'
+
+    def test_multiword_both_normalize_to_same(self):
+        assert self._norm('gnome-text-editor') == self._norm('org.gnome.TextEditor')
+
+    def test_simple_no_prefix(self):
+        assert self._norm('firefox') == 'firefox'
+
+    def test_gnome_shell(self):
+        assert self._norm('gnome-shell') == self._norm('org.gnome.Shell')
+
+    def test_empty_string(self):
+        assert self._norm('') == ''
+
+    def test_none(self):
+        assert self._norm(None) == ''
+
+    def test_com_prefix_stripped(self):
+        assert self._norm('com.example.MyApp') == 'examplemyapp'
+
+    def test_case_insensitive(self):
+        assert self._norm('GNOME-CALCULATOR') == self._norm('org.gnome.Calculator')
+
 
 # ---------------------------------------------------------------------------
 # AT-SPI2 subprocess walker

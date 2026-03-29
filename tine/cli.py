@@ -84,10 +84,42 @@ def _walk_atspi(app=None):
     return parsed
 
 
+def _normalize_app_name(name):
+    """Normalize an app name/wm_class/app_id for cross-format matching.
+
+    AT-SPI2 reports app names with hyphens (e.g. "gnome-calculator") while
+    GNOME's wm_class and app_id use reverse-domain notation with dots
+    (e.g. "org.gnome.Calculator").  Removing separators and common prefixes
+    lets substring matching work across both formats.
+
+    Examples:
+        "gnome-calculator"      → "gnomecalculator"
+        "org.gnome.Calculator"  → "gnomecalculator"
+        "org.gnome.TextEditor"  → "gnometexteditor"
+        "gnome-text-editor"     → "gnometexteditor"
+        "firefox"               → "firefox"
+    """
+    if not name:
+        return ''
+    s = name.lower()
+    # Strip common reverse-domain prefixes used in wm_class and app_id
+    for prefix in ('org.', 'com.', 'net.', 'io.'):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
+    # Remove separators so hyphens and dots compare equal
+    s = s.replace('-', '').replace('.', '')
+    return s
+
+
 def _resolve_window_offset(app_name):
     """Match app name against window list to get (x, y) offset.
 
-    Tries wm_class substring first (case-insensitive), then title.
+    Matching order:
+    1. Normalized wm_class substring (handles AT-SPI2 hyphens vs reverse-domain dots)
+    2. Normalized app_id substring (for GNOME extensions that expose this field)
+    3. Raw title substring (case-insensitive, last resort)
+
     Falls back to (0, 0) with stderr warning.
     """
     if not app_name:
@@ -102,15 +134,24 @@ def _resolve_window_offset(app_name):
               file=sys.stderr)
         return (0, 0)
 
+    app_norm = _normalize_app_name(app_name)
+
+    # 1. Normalized wm_class substring match
+    if app_norm:
+        for w in windows:
+            wm_class = w.get('wm_class', '')
+            if wm_class and app_norm in _normalize_app_name(wm_class):
+                return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+
+    # 2. Normalized app_id substring match
+    if app_norm:
+        for w in windows:
+            app_id = w.get('app_id', '')
+            if app_id and app_norm in _normalize_app_name(app_id):
+                return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+
+    # 3. Fall back to raw title substring match (case-insensitive)
     app_lower = app_name.lower()
-
-    # Try wm_class substring match first
-    for w in windows:
-        wm_class = w.get('wm_class', '')
-        if app_lower in wm_class.lower():
-            return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
-
-    # Fall back to title substring match
     for w in windows:
         title = w.get('title', '')
         if app_lower in title.lower():
