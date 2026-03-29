@@ -47,28 +47,27 @@ def make_tiny_png(path):
 
 class TestAnnotateAdversarial:
 
-    def test_scale_zero_no_crash(self, tmp_path):
-        """scale=0 collapses all bboxes to (0,0). Should not crash."""
+    def test_scale_zero_raises(self, tmp_path):
+        """scale=0 is rejected with ValueError (hardening: scale must be positive)."""
         from tine.screenshot import annotate
         img_path = str(tmp_path / 'img.png')
         make_tiny_png(img_path)
         ref_cache = make_ref_cache(
             ('ref_1', {'x': 100, 'y': 100, 'w': 50, 'h': 50}),
         )
-        # scale=0 means all coords become 0. PIL draws a degenerate 0x0 rect.
-        # Does it crash? It shouldn't -- but let's find out.
-        annotate(img_path, ref_cache, scale=0)
+        with pytest.raises(ValueError, match='Scale must be positive'):
+            annotate(img_path, ref_cache, scale=0)
 
-    def test_scale_negative(self, tmp_path):
-        """scale=-1 produces negative pixel coords. PIL may explode."""
+    def test_scale_negative_raises(self, tmp_path):
+        """scale=-1 is rejected with ValueError (hardening: scale must be positive)."""
         from tine.screenshot import annotate
         img_path = str(tmp_path / 'img.png')
         make_tiny_png(img_path)
         ref_cache = make_ref_cache(
             ('ref_1', {'x': 100, 'y': 100, 'w': 50, 'h': 50}),
         )
-        # Negative pixel coordinates in PIL rectangle. Does it raise or silently corrupt?
-        annotate(img_path, ref_cache, scale=-1)
+        with pytest.raises(ValueError, match='Scale must be positive'):
+            annotate(img_path, ref_cache, scale=-1)
 
     def test_scale_nan_bbox_coords(self, tmp_path):
         """NaN in bbox coords: int(NaN) raises ValueError, ref is skipped gracefully."""
@@ -164,16 +163,15 @@ class TestAnnotateAdversarial:
         # scale=1e18 -> int(100 * 1e18) = huge. PIL draws off-canvas. Does it crash?
         annotate(img_path, ref_cache, scale=1e18)
 
-    def test_scale_string(self, tmp_path):
-        """scale='2.0' (string): int(x * '2.0') -> ValueError (string repetition then int parse).
-        The ref is skipped gracefully, no crash from annotate()."""
+    def test_scale_string_raises(self, tmp_path):
+        """scale='2.0' (string): scale <= 0 comparison raises TypeError.
+        Hardening rejects non-numeric scale at the validation gate."""
         from tine.screenshot import annotate
         img_path = str(tmp_path / 'img.png')
         make_tiny_png(img_path)
         ref_cache = make_ref_cache(('ref_1', valid_bbox()))
-        # String scale causes ValueError internally; refs skipped, image saved
-        result = annotate(img_path, ref_cache, scale='2.0')
-        assert result == img_path
+        with pytest.raises(TypeError):
+            annotate(img_path, ref_cache, scale='2.0')
 
     def test_no_bbox_key_at_all(self, tmp_path):
         """ref_data has no 'bbox' key. ref_data.get('bbox', {}) returns {},

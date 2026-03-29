@@ -8,6 +8,7 @@ import argparse
 import copy
 import os
 import re
+import subprocess
 import sys
 
 import tine.describe
