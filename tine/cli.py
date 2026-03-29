@@ -163,11 +163,68 @@ def _resolve_window_offset(app_name):
 
 
 def _focus_window(window):
-    """Raise and focus a window via GNOME Shell D-Bus."""
-    # TODO: implement via gdbus call to org.gnome.Shell to activate window
-    title = window.get('title', '?')
-    print(f'Warning: focus not yet implemented (would focus "{title}")',
-          file=sys.stderr)
+    """Raise and focus a window via GNOME Shell D-Bus (Shell.Eval).
+
+    Uses org.gnome.Shell.Eval to run JavaScript that iterates all window
+    actors and activates the first one whose title matches.  Falls back to
+    wm_class when title is empty.
+
+    Raises RuntimeError if gdbus fails or Shell.Eval reports an error.
+    """
+    title = window.get('title', '')
+    wm_class = window.get('wm_class', '')
+    if title:
+        match_value = title
+        js_getter = 'get_title'
+    elif wm_class:
+        match_value = wm_class
+        js_getter = 'get_wm_class'
+    else:
+        raise RuntimeError('_focus_window: window has no title or wm_class to match on')
+
+    # Escape for safe embedding inside a JS single-quoted string literal.
+    # Order matters: backslashes first, then characters that need \-escaping.
+    escaped = match_value.replace('\\', '\\\\')
+    escaped = escaped.replace("'", "\\'")
+    escaped = escaped.replace('\n', '\\n')
+    escaped = escaped.replace('\r', '\\r')
+    escaped = escaped.replace('\0', '\\0')
+    escaped = escaped.replace('\u2028', '\\u2028')
+    escaped = escaped.replace('\u2029', '\\u2029')
+
+    js = (
+        "global.get_window_actors().some(function(a) {"
+        " var w = a.get_meta_window();"
+        f" if (w.{js_getter}() === '{escaped}')"
+        " { w.activate(global.get_current_time()); return true; }"
+        "});"
+    )
+
+    cmd = [
+        'gdbus', 'call', '--session',
+        '--dest', 'org.gnome.Shell',
+        '--object-path', '/org/gnome/Shell',
+        '--method', 'org.gnome.Shell.Eval',
+        js,
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except FileNotFoundError:
+        raise RuntimeError('gdbus not found; cannot focus window')
+    except subprocess.TimeoutExpired:
+        raise RuntimeError('gdbus call timed out while trying to focus window')
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f'Shell.Eval failed (exit {result.returncode}): {result.stderr.strip()}'
+        )
+
+    # Shell.Eval returns (bool, string).  A false result means GNOME rejected
+    # the call (e.g. evaluation is disabled on locked-down systems).
+    if result.stdout.strip().startswith('(false'):
+        raise RuntimeError(
+            f'Shell.Eval returned false (may be disabled): {result.stdout.strip()}'
+        )
 
 
 def _cmd_tree(args):
@@ -319,14 +376,22 @@ def _cmd_focus(args):
     for w in windows:
         wm_class = w.get('wm_class', '')
         if app_lower in wm_class.lower():
-            _focus_window(w)
+            try:
+                _focus_window(w)
+            except RuntimeError as e:
+                print(f'Error: {e}', file=sys.stderr)
+                sys.exit(1)
             return
 
     # Fall back to title substring match
     for w in windows:
         title = w.get('title', '')
         if app_lower in title.lower():
-            _focus_window(w)
+            try:
+                _focus_window(w)
+            except RuntimeError as e:
+                print(f'Error: {e}', file=sys.stderr)
+                sys.exit(1)
             return
 
     print(f'Error: no window matching "{args.app}"', file=sys.stderr)
