@@ -276,6 +276,46 @@ class TestScreenshotCommand:
         # No refs to draw — annotate should not be called
         assert len(annotate_calls) == 0
 
+    def test_screenshot_output_path(self, monkeypatch, capsys, tmp_path):
+        """--output passes the path to capture()."""
+        capture_calls = []
+
+        def fake_capture(output_path=None):
+            capture_calls.append(output_path)
+            path = output_path or str(tmp_path / 'auto.png')
+            open(path, 'w').close()
+            return path
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
+
+        out_path = str(tmp_path / 'custom.png')
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot', '--output', out_path])
+
+        assert capture_calls == [out_path]
+        out = capsys.readouterr().out.strip()
+        assert out == out_path
+
+    def test_screenshot_output_path_short_flag(self, monkeypatch, capsys, tmp_path):
+        """-o is accepted as an alias for --output."""
+        capture_calls = []
+
+        def fake_capture(output_path=None):
+            capture_calls.append(output_path)
+            path = output_path or str(tmp_path / 'auto.png')
+            open(path, 'w').close()
+            return path
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
+
+        out_path = str(tmp_path / 'short.png')
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot', '-o', out_path])
+
+        assert capture_calls == [out_path]
+
     def test_screenshot_scale(self, monkeypatch, capsys, tmp_path):
         """--scale passes through to annotate."""
         ref_cache_path = str(tmp_path / 'refs.json')
