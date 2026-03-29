@@ -7,16 +7,23 @@ format_for_agent() formats the result as text for LLM consumption.
 import os
 import tempfile
 
+import tine.tree
+from tine.walker import walk_atspi
+
 
 def _get_tree(app=None):
-    """Get formatted AT-SPI2 tree. Placeholder for RSP A integration."""
-    # Will call tree.py pipeline: walk → collapse → assign_refs → format
-    return ''
+    """Run the AT-SPI2 pipeline and return formatted tree and ref cache.
 
+    Returns:
+        Tuple of (formatted_tree_text, ref_cache).
 
-def _get_ref_cache():
-    """Get current ref cache. Placeholder for RSP A integration."""
-    return {}
+    Raises:
+        RuntimeError: if the AT-SPI2 walker subprocess fails.
+    """
+    raw_tree = walk_atspi(app=app)
+    collapsed = tine.tree.collapse_containers(raw_tree)
+    annotated, ref_cache = tine.tree.assign_refs(collapsed)
+    return tine.tree.format_tree(annotated), ref_cache
 
 
 def _get_windows():
@@ -45,9 +52,11 @@ def describe(app=None, annotate=False, scale=1.0):
 
     Returns:
         Dict with keys: tree, screenshot, windows, ref_cache.
+
+    Raises:
+        RuntimeError: if the AT-SPI2 walker fails.
     """
-    tree = _get_tree(app=app)
-    ref_cache = _get_ref_cache()
+    tree, ref_cache = _get_tree(app=app)
     windows = _get_windows()
 
     fd, screenshot_path = tempfile.mkstemp(suffix='.png', prefix='tine-describe-')
