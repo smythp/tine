@@ -56,6 +56,23 @@ def capture(output_path=None):
     if '(false' in stdout:
         raise RuntimeError(f'Screenshot capture failed: {stdout}')
 
+    # GNOME Shell extension returns before the file is fully flushed.
+    # Wait for the file to be readable as a valid PNG.
+    import time
+    for _ in range(20):
+        try:
+            with open(output_path, 'rb') as f:
+                header = f.read(8)
+                if header[:4] == b'\x89PNG':
+                    # Check that the file has an IEND chunk (fully written)
+                    f.seek(-12, 2)
+                    tail = f.read(12)
+                    if b'IEND' in tail:
+                        break
+        except (OSError, ValueError):
+            pass
+        time.sleep(0.05)
+
     return output_path
 
 
