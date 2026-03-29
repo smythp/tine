@@ -344,8 +344,7 @@ class TestMoveAdversarial:
         from tine.input import move
         return move(x, y)
 
-    @patch('tine.input._run_ydotool')
-    def test_nan_bypasses_negative_check(self, mock_run):
+    def test_nan_bypasses_negative_check(self):
         """FIXED: move() now rejects NaN via int(NaN) -> ValueError.
         NaN is a float so it passes isinstance, but int(NaN) raises ValueError.
         """
@@ -353,8 +352,7 @@ class TestMoveAdversarial:
         with pytest.raises(ValueError):
             move(float('nan'), 0)
 
-    @patch('tine.input._run_ydotool')
-    def test_positive_inf_bypasses_check(self, mock_run):
+    def test_positive_inf_bypasses_check(self):
         """FIXED: move() now rejects infinity via int(inf) -> OverflowError."""
         from tine.input import move
         with pytest.raises((OverflowError, ValueError)):
