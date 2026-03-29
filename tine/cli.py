@@ -6,10 +6,8 @@ windows, focus, describe.
 
 import argparse
 import copy
-import json
 import os
 import re
-import subprocess
 import sys
 
 import tine.describe
@@ -17,6 +15,7 @@ import tine.input
 import tine.refs
 import tine.screenshot
 import tine.tree
+from tine.walker import walk_atspi as _walk_atspi
 
 
 _ALLOWED_CACHE_DIRS = (
@@ -51,37 +50,6 @@ def _ref_cache_path():
         f'({", ".join(_ALLOWED_CACHE_DIRS)})'
     )
 
-
-def _walk_atspi(app=None):
-    """Run AT-SPI2 walker in a subprocess to avoid D-Bus cache staleness.
-
-    Returns the raw tree dict (JSON parsed from subprocess stdout).
-    Raises RuntimeError on failure.
-    """
-    cmd = [sys.executable, '-m', 'tine.atspi_walker']
-    if app is not None:
-        cmd.append(app)
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired:
-        raise RuntimeError('AT-SPI2 walker timed out after 30s')
-    if result.returncode != 0:
-        raise RuntimeError(f'AT-SPI2 walker failed: {result.stderr.strip()}')
-    _ATSPI_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
-    if len(result.stdout) > _ATSPI_MAX_BYTES:
-        raise RuntimeError(
-            f'AT-SPI2 walker output exceeds 50 MB ({len(result.stdout)} bytes); '
-            'aborting to prevent OOM'
-        )
-    try:
-        parsed = json.loads(result.stdout)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f'AT-SPI2 walker returned invalid JSON: {e}') from e
-    if not isinstance(parsed, dict):
-        raise RuntimeError(
-            f'AT-SPI2 walker returned unexpected type: {type(parsed).__name__}'
-        )
-    return parsed
 
 
 def _normalize_app_name(name):
@@ -400,11 +368,15 @@ def _cmd_focus(args):
 
 def _cmd_describe(args):
     """Handle 'describe' subcommand."""
-    result = tine.describe.describe(
-        app=getattr(args, 'app', None),
-        annotate=args.annotate,
-        scale=args.scale,
-    )
+    try:
+        result = tine.describe.describe(
+            app=getattr(args, 'app', None),
+            annotate=args.annotate,
+            scale=args.scale,
+        )
+    except RuntimeError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
 
     # Format output first, before mutating ref_cache with _app
     output = tine.describe.format_for_agent(result)
