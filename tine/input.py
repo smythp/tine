@@ -1,15 +1,14 @@
-"""Input injection via python-evdev (uinput) for mouse and ydotool for typing.
+"""Input injection via python-evdev (uinput) for mouse, keyboard, and typing.
 
-Mouse movement and clicking use direct EV_ABS writes to /dev/uinput via evdev.
-Text typing still uses ydotool (reliable for text, only mouse positioning was broken).
-Key combos use evdev key events directly.
+All input goes through a single UInput device (tine-input) so the Wayland
+compositor tracks focus consistently. Mouse uses EV_ABS, keyboard/typing
+use EV_KEY with character-to-keycode mapping.
 
 The UInput device is created lazily on first use and cached for the process lifetime.
 Device creation takes ~0.5s for the compositor to recognize it.
 """
 
 import os
-import subprocess
 import time
 
 import evdev
@@ -78,6 +77,53 @@ KEYCODES = {
     'plus': 13,  # KEY_EQUAL — plus is shift+equal but we send the keycode
 }
 
+# Characters that require shift. Maps the shifted character to the base keycode name.
+SHIFT_CHARS = {
+    '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+    '^': '6', '&': '7', '*': '8', '(': '9', ')': '0',
+    '_': 'minus', '+': 'equal',
+    '{': 'leftbrace', '}': 'rightbrace',
+    ':': 'semicolon', '"': 'apostrophe',
+    '~': 'grave', '|': 'backslash',
+    '<': 'comma', '>': 'dot', '?': 'slash',
+}
+
+# Map printable characters to (keycode, needs_shift).
+# Built from KEYCODES + SHIFT_CHARS so the mapping stays consistent.
+CHAR_MAP = {}
+
+# Lowercase letters: a-z → keycode, no shift
+for _c in 'abcdefghijklmnopqrstuvwxyz':
+    CHAR_MAP[_c] = (KEYCODES[_c], False)
+
+# Uppercase letters: A-Z → same keycode as lowercase, with shift
+for _c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+    CHAR_MAP[_c] = (KEYCODES[_c.lower()], True)
+
+# Digits: 0-9 → keycode, no shift
+for _c in '0123456789':
+    CHAR_MAP[_c] = (KEYCODES[_c], False)
+
+# Simple punctuation (unshifted keys)
+CHAR_MAP['-'] = (KEYCODES['minus'], False)
+CHAR_MAP['='] = (KEYCODES['equal'], False)
+CHAR_MAP['['] = (KEYCODES['leftbrace'], False)
+CHAR_MAP[']'] = (KEYCODES['rightbrace'], False)
+CHAR_MAP[';'] = (KEYCODES['semicolon'], False)
+CHAR_MAP["'"] = (KEYCODES['apostrophe'], False)
+CHAR_MAP['`'] = (KEYCODES['grave'], False)
+CHAR_MAP['\\'] = (KEYCODES['backslash'], False)
+CHAR_MAP[','] = (KEYCODES['comma'], False)
+CHAR_MAP['.'] = (KEYCODES['dot'], False)
+CHAR_MAP['/'] = (KEYCODES['slash'], False)
+CHAR_MAP[' '] = (KEYCODES['space'], False)
+CHAR_MAP['\t'] = (KEYCODES['tab'], False)
+CHAR_MAP['\n'] = (KEYCODES['enter'], False)
+
+# Shifted punctuation/symbols
+for _shifted_char, _base_name in SHIFT_CHARS.items():
+    CHAR_MAP[_shifted_char] = (KEYCODES[_base_name], True)
+
 # Keys that are modifiers (pressed first, released last)
 MODIFIER_NAMES = {'ctrl', 'lctrl', 'rctrl', 'shift', 'lshift', 'rshift',
                    'alt', 'lalt', 'ralt', 'super', 'meta'}
@@ -120,14 +166,6 @@ def _physical_to_abs(phys_x, phys_y):
     abs_y = int(phys_y * ABS_MAX / PHYSICAL_HEIGHT)
     return abs_x, abs_y
 
-
-def _run_ydotool(args):
-    """Run a ydotool command (used only for text typing)."""
-    cmd = ['ydotool'] + args
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-    if result.returncode != 0:
-        raise RuntimeError(f'ydotool failed: {" ".join(cmd)}: {result.stderr.strip()}')
-    return result
 
 
 def move(x, y):
@@ -239,28 +277,55 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
 
 
 def type_text(text, delay_ms=None):
-    """Type text via ydotool.
+    """Type text via evdev key events through the tine-input device.
 
-    ydotool type is reliable for text input — only mouse positioning was broken.
+    Each character is mapped to a keycode (with shift for uppercase/symbols)
+    and sent as a key press/release through the same UInput device used for
+    clicking, so Wayland focus is preserved.
 
     Args:
         text: String to type.
         delay_ms: Optional delay between keystrokes in milliseconds.
+            Defaults to 2ms if not specified.
 
     Raises:
-        RuntimeError: If ydotool fails.
+        ValueError: If text is not a string, delay is negative, or a
+            character has no keycode mapping.
     """
     if not isinstance(text, str):
         raise ValueError(f'text must be a string, got {type(text).__name__}')
-    args = ['type']
     if delay_ms is not None:
         delay_ms = int(delay_ms)
         if delay_ms < 0:
             raise ValueError(f'delay_ms must be non-negative, got {delay_ms}')
-        args.extend(['--key-delay', str(delay_ms)])
-    args.append('--')
-    args.append(text)
-    _run_ydotool(args)
+    else:
+        delay_ms = 2
+
+    delay_s = delay_ms / 1000.0
+    ui = _get_uinput()
+    shift_code = KEYCODES['shift']
+
+    for char in text:
+        if char not in CHAR_MAP:
+            raise ValueError(f'No keycode mapping for character: {char!r}')
+
+        keycode, needs_shift = CHAR_MAP[char]
+
+        if needs_shift:
+            ui.write(ecodes.EV_KEY, shift_code, 1)
+            ui.syn()
+
+        ui.write(ecodes.EV_KEY, keycode, 1)
+        ui.syn()
+        ui.write(ecodes.EV_KEY, keycode, 0)
+        ui.syn()
+
+        if needs_shift:
+            ui.write(ecodes.EV_KEY, shift_code, 0)
+            ui.syn()
+
+        if delay_s > 0:
+            time.sleep(delay_s)
 
 
 def key_combo(combo_str):

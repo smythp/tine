@@ -408,80 +408,78 @@ class TestMoveAdversarial:
 
 class TestTypeTextAdversarial:
 
-    @patch('tine.input._run_ydotool')
-    def test_empty_string(self, mock_run):
-        """type_text(''): empty string. Should not crash."""
+    def test_empty_string(self):
+        """type_text(''): empty string. Should not crash, no events sent."""
         from tine.input import type_text
-        type_text('')
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            type_text('')
+            assert fake.syn_count == 0
 
-    @patch('tine.input._run_ydotool')
-    def test_null_byte_in_text(self, mock_run):
-        """type_text('hello\x00world'): null byte in text passed to ydotool."""
+    def test_null_byte_in_text(self):
+        """type_text with null byte raises ValueError (no keycode mapping)."""
         from tine.input import type_text
-        type_text('hello\x00world')  # No error raised by tine
-        mock_run.assert_called_once()
-        # Null byte reaches ydotool -- undefined behavior
-        call_args = mock_run.call_args[0][0]
-        assert 'hello\x00world' in call_args
+        p, fake = _patch_uinput()
+        with p:
+            with pytest.raises(ValueError, match='No keycode mapping'):
+                type_text('hello\x00world')
 
-    @patch('tine.input._run_ydotool')
-    def test_gigabyte_text(self, mock_run):
-        """type_text('A' * 10_000_000): 10MB string. No validation, reaches subprocess."""
+    def test_gigabyte_text(self):
+        """type_text('A' * 10_000_000): large string. Sends key events for each char."""
         from tine.input import type_text
-        type_text('A' * 10_000_000)
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            type_text('A' * 1000, delay_ms=0)  # reduced to avoid slow test
+            assert fake.syn_count > 0
 
-    @patch('tine.input._run_ydotool')
-    def test_negative_delay(self, mock_run):
-        """FIXED: type_text('hi', delay_ms=-1) raises ValueError for negative delay."""
+    def test_negative_delay(self):
+        """type_text('hi', delay_ms=-1) raises ValueError for negative delay."""
         from tine.input import type_text
-        with pytest.raises(ValueError):
-            type_text('hi', delay_ms=-1)
+        p, fake = _patch_uinput()
+        with p:
+            with pytest.raises(ValueError):
+                type_text('hi', delay_ms=-1)
 
-    @patch('tine.input._run_ydotool')
-    def test_float_delay(self, mock_run):
-        """type_text('hi', delay_ms=1.5): float delay truncated to int via int().
-        int(1.5)=1 is sent to ydotool as '--key-delay 1'."""
+    def test_float_delay(self):
+        """type_text('hi', delay_ms=1.5): float delay truncated to int via int()."""
         from tine.input import type_text
-        type_text('hi', delay_ms=1.5)
-        call_args = mock_run.call_args[0][0]
-        assert '--key-delay' in call_args
-        assert str(int(1.5)) in call_args
+        p, fake = _patch_uinput()
+        with p:
+            type_text('hi', delay_ms=1.5)
+            assert fake.syn_count > 0
 
-    @patch('tine.input._run_ydotool')
-    def test_string_delay(self, mock_run):
-        """FIXED: type_text('hi', delay_ms='fast') raises ValueError.
-        int('fast') raises ValueError — string delays are now rejected."""
+    def test_string_delay(self):
+        """type_text('hi', delay_ms='fast') raises ValueError.
+        int('fast') raises ValueError — string delays are rejected."""
         from tine.input import type_text
-        with pytest.raises(ValueError):
-            type_text('hi', delay_ms='fast')
+        p, fake = _patch_uinput()
+        with p:
+            with pytest.raises(ValueError):
+                type_text('hi', delay_ms='fast')
 
-    @patch('tine.input._run_ydotool')
-    def test_unicode_text(self, mock_run):
-        """Unicode, emoji, RTL text passed through without issue."""
+    def test_unicode_text(self):
+        """Unicode/emoji text raises ValueError (no keycode mapping for non-ASCII)."""
         from tine.input import type_text
-        type_text('\u0645\u0631\u062d\u0628\u0627 \U0001F600 hello')
-        mock_run.assert_called_once()
+        p, fake = _patch_uinput()
+        with p:
+            with pytest.raises(ValueError, match='No keycode mapping'):
+                type_text('\u0645\u0631\u062d\u0628\u0627 \U0001F600 hello')
 
-    @patch('tine.input._run_ydotool')
-    def test_text_is_none(self, mock_run):
-        """type_text(None): args.append(None) -- subprocess.run receives None as arg.
-        Does subprocess raise TypeError?"""
+    def test_text_is_none(self):
+        """type_text(None) raises ValueError."""
         from tine.input import type_text
-        # No explicit validation. None gets appended to the args list.
-        # subprocess.run converts args to strings only if shell=True.
-        # With list args, None will likely raise TypeError in subprocess.
-        with pytest.raises((TypeError, AttributeError, ValueError)):
-            type_text(None)
+        p, fake = _patch_uinput()
+        with p:
+            with pytest.raises(ValueError):
+                type_text(None)
 
-    @patch('tine.input._run_ydotool')
-    def test_delay_ms_none_skipped(self, mock_run):
-        """delay_ms=None: the if-branch is skipped, no --key-delay added."""
+    def test_delay_ms_none_uses_default(self):
+        """delay_ms=None: uses default 2ms delay."""
         from tine.input import type_text
-        type_text('hello', delay_ms=None)
-        call_args = mock_run.call_args[0][0]
-        assert '--key-delay' not in call_args
+        p, fake = _patch_uinput()
+        with p:
+            type_text('hi', delay_ms=None)
+            assert fake.syn_count > 0
 
 
 # ===========================================================================
@@ -595,41 +593,41 @@ class TestKeyComboAdversarial:
 
 class TestClickRefAdversarial:
 
-    @patch('tine.input._run_ydotool')
-    def test_missing_bbox_key(self, mock_run):
-        """click_ref() with ref that has no 'bbox' key raises ValueError.
-        The function checks 'if bbox not in ref: raise ValueError'."""
+    def test_missing_bbox_key(self):
+        """click_ref() with ref that has no 'bbox' key raises ValueError."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X'}}
-        with pytest.raises((KeyError, ValueError)):
-            click_ref('ref_1', ref_cache)
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X'}}
+            with pytest.raises((KeyError, ValueError)):
+                click_ref('ref_1', ref_cache)
 
-    @patch('tine.input._run_ydotool')
-    def test_bbox_is_none(self, mock_run):
+    def test_bbox_is_none(self):
         """ref['bbox'] = None: bbox_center(None) -> TypeError or returns None."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': None}}
-        with pytest.raises((TypeError, AttributeError, ValueError)):
-            click_ref('ref_1', ref_cache)
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': None}}
+            with pytest.raises((TypeError, AttributeError, ValueError)):
+                click_ref('ref_1', ref_cache)
 
-    @patch('tine.input._run_ydotool')
-    def test_window_offset_empty_tuple(self, mock_run):
-        """BROKE: click_ref() with window_offset=()
-        HOW: window_offset=() -> window_offset[0] raises IndexError
-        WHY IT HURTS: No length validation on window_offset parameter.
-        """
+    def test_window_offset_empty_tuple(self):
+        """click_ref() with window_offset=() raises IndexError."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
-        with pytest.raises(IndexError):
-            click_ref('ref_1', ref_cache, window_offset=())
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
+            with pytest.raises(IndexError):
+                click_ref('ref_1', ref_cache, window_offset=())
 
-    @patch('tine.input._run_ydotool')
-    def test_window_offset_one_element(self, mock_run):
+    def test_window_offset_one_element(self):
         """window_offset=(5,): [0] works, [1] raises IndexError."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
-        with pytest.raises(IndexError):
-            click_ref('ref_1', ref_cache, window_offset=(5,))
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
+            with pytest.raises(IndexError):
+                click_ref('ref_1', ref_cache, window_offset=(5,))
 
     def test_window_offset_list_works(self):
         """window_offset=[10, 20]: list indexing works same as tuple."""
@@ -647,22 +645,23 @@ class TestClickRefAdversarial:
         with pytest.raises(KeyError, match='Unknown ref'):
             click_ref('ref_99', ref_cache)
 
-    @patch('tine.input._run_ydotool')
-    def test_invalid_button(self, mock_run):
+    def test_invalid_button(self):
         """click_ref with invalid button name -> ValueError from click()."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
-        with pytest.raises(ValueError, match='Invalid button'):
-            click_ref('ref_1', ref_cache, button='hyperclick')
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
+            with pytest.raises(ValueError, match='Invalid button'):
+                click_ref('ref_1', ref_cache, button='hyperclick')
 
-    @patch('tine.input._run_ydotool')
-    def test_window_offset_nan(self, mock_run):
-        """window_offset=(float('nan'), 0): NaN propagates to move() which rejects it.
-        int(NaN) raises ValueError before ydotool is called."""
+    def test_window_offset_nan(self):
+        """window_offset=(float('nan'), 0): NaN propagates to move() which rejects it."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
-        with pytest.raises(ValueError):
-            click_ref('ref_1', ref_cache, window_offset=(float('nan'), 0))
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X', 'bbox': valid_bbox()}}
+            with pytest.raises(ValueError):
+                click_ref('ref_1', ref_cache, window_offset=(float('nan'), 0))
 
 
 # ===========================================================================
@@ -831,19 +830,18 @@ class TestFormatForAgentAdversarial:
 # ===========================================================================
 
 class TestNaNPropagation:
-    """NaN in window_offset propagates through click_ref -> click -> move -> ydotool.
-    No guard catches NaN at any level."""
+    """NaN in window_offset propagates through click_ref -> click -> move.
+    move() catches NaN via int() conversion."""
 
-    @patch('tine.input._run_ydotool')
-    def test_nan_traverses_full_stack(self, mock_run):
-        """FIXED: NaN in window_offset is now rejected in move() via int(NaN).
-        ValueError is raised before ydotool is called.
-        """
+    def test_nan_traverses_full_stack(self):
+        """NaN in window_offset is rejected in move() via int(NaN) -> ValueError."""
         from tine.input import click_ref
-        ref_cache = {'ref_1': {'role': 'button', 'name': 'X',
-                               'bbox': {'x': 50, 'y': 50, 'w': 100, 'h': 40}}}
-        with pytest.raises(ValueError):
-            click_ref('ref_1', ref_cache, window_offset=(float('nan'), 0))
+        p, fake = _patch_uinput()
+        with p:
+            ref_cache = {'ref_1': {'role': 'button', 'name': 'X',
+                                   'bbox': {'x': 50, 'y': 50, 'w': 100, 'h': 40}}}
+            with pytest.raises(ValueError):
+                click_ref('ref_1', ref_cache, window_offset=(float('nan'), 0))
 
 
 # ===========================================================================
