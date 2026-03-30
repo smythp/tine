@@ -846,5 +846,94 @@ class TestNaNPropagation:
             click_ref('ref_1', ref_cache, window_offset=(float('nan'), 0))
 
 
+# ===========================================================================
+# cli.py -- _cmd_screenshot bbox shadow offset
+# ===========================================================================
+
+class TestCmdScreenshotShadowOffset:
+    """_cmd_screenshot must include shadow offset when adjusting annotation bboxes."""
+
+    def _run_annotate(self, tmp_path, ref_cache, window_offset, shadow_env):
+        """Run _cmd_screenshot --annotate and return the adjusted refs dict passed to annotate()."""
+        import tine.cli
+        img_path = str(tmp_path / 'screen.png')
+        make_tiny_png(img_path)
+
+        annotate_calls = []
+        env_override = {'TINE_SHADOW_OFFSET': str(shadow_env)}
+
+        with patch('tine.screenshot.capture', return_value=img_path), \
+             patch('tine.refs.load_ref_cache', return_value=ref_cache), \
+             patch('tine.cli._resolve_window_offset', return_value=window_offset), \
+             patch('tine.screenshot.annotate',
+                   side_effect=lambda p, refs, **kw: annotate_calls.append(refs)), \
+             patch.dict('os.environ', env_override, clear=False):
+            tine.cli.main(['screenshot', '--annotate'])
+
+        assert annotate_calls, 'annotate() was not called'
+        return annotate_calls[0]
+
+    def test_default_shadow_25_applied(self, tmp_path):
+        """Shadow default of 25px is added to window offset in annotation bbox."""
+        ref_cache = {
+            '_app': 'testapp',
+            'ref_1': {'role': 'button', 'name': 'OK',
+                      'bbox': {'x': 10, 'y': 20, 'w': 50, 'h': 30}},
+        }
+        adjusted = self._run_annotate(tmp_path, ref_cache, (100, 200), shadow_env=25)
+        bbox = adjusted['ref_1']['bbox']
+        assert bbox['x'] == 10 + 100 + 25   # element + window_x + shadow
+        assert bbox['y'] == 20 + 200 + 25   # element + window_y + shadow
+
+    def test_custom_shadow_env_var(self, tmp_path):
+        """TINE_SHADOW_OFFSET env var is used instead of default 25px."""
+        ref_cache = {
+            '_app': 'testapp',
+            'ref_1': {'role': 'button', 'name': 'X',
+                      'bbox': {'x': 5, 'y': 5, 'w': 40, 'h': 20}},
+        }
+        adjusted = self._run_annotate(tmp_path, ref_cache, (50, 60), shadow_env=10)
+        bbox = adjusted['ref_1']['bbox']
+        assert bbox['x'] == 5 + 50 + 10
+        assert bbox['y'] == 5 + 60 + 10
+
+    def test_zero_shadow_no_extra_offset(self, tmp_path):
+        """TINE_SHADOW_OFFSET=0 means only window offset is added, no shadow."""
+        ref_cache = {
+            '_app': 'testapp',
+            'ref_1': {'role': 'button', 'name': 'X',
+                      'bbox': {'x': 10, 'y': 20, 'w': 50, 'h': 30}},
+        }
+        adjusted = self._run_annotate(tmp_path, ref_cache, (100, 200), shadow_env=0)
+        bbox = adjusted['ref_1']['bbox']
+        assert bbox['x'] == 10 + 100
+        assert bbox['y'] == 20 + 200
+
+    def test_shadow_applied_to_all_refs(self, tmp_path):
+        """Shadow offset is applied to every ref in the cache, not just the first."""
+        ref_cache = {
+            '_app': 'testapp',
+            'ref_1': {'role': 'button', 'name': 'A',
+                      'bbox': {'x': 0, 'y': 0, 'w': 10, 'h': 10}},
+            'ref_2': {'role': 'button', 'name': 'B',
+                      'bbox': {'x': 100, 'y': 100, 'w': 10, 'h': 10}},
+        }
+        adjusted = self._run_annotate(tmp_path, ref_cache, (0, 0), shadow_env=25)
+        assert adjusted['ref_1']['bbox']['x'] == 0 + 0 + 25
+        assert adjusted['ref_2']['bbox']['x'] == 100 + 0 + 25
+
+    def test_original_cache_not_mutated(self, tmp_path):
+        """_cmd_screenshot uses deepcopy — original cache bboxes are not modified."""
+        ref_cache = {
+            '_app': 'testapp',
+            'ref_1': {'role': 'button', 'name': 'X',
+                      'bbox': {'x': 10, 'y': 20, 'w': 50, 'h': 30}},
+        }
+        self._run_annotate(tmp_path, ref_cache, (100, 200), shadow_env=25)
+        # Original bbox must be untouched
+        assert ref_cache['ref_1']['bbox']['x'] == 10
+        assert ref_cache['ref_1']['bbox']['y'] == 20
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

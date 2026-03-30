@@ -197,6 +197,7 @@ def _cmd_screenshot(args):
         if real_refs:
             app_name = cache.get('_app', '')
             offset = _resolve_window_offset(app_name)
+            shadow = int(os.environ.get('TINE_SHADOW_OFFSET', '25'))
 
             # Create adjusted copy with screen coords
             adjusted = {}
@@ -208,8 +209,8 @@ def _cmd_screenshot(args):
                 bbox = adjusted_data.get('bbox') or {}
                 # Write bbox back in case it was None or missing
                 adjusted_data['bbox'] = bbox
-                bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0]
-                bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1]
+                bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0] + shadow
+                bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1] + shadow
                 adjusted[ref_id] = adjusted_data
 
             tine.screenshot.annotate(path, adjusted, scale=args.scale)
@@ -370,6 +371,7 @@ def main(argv=None):
     """CLI entry point."""
     parser = argparse.ArgumentParser(prog='tine', description='AI agent desktop driver')
     subparsers = parser.add_subparsers(dest='command')
+    _default_scale = float(os.environ.get('TINE_SCALE', '1.0'))
 
     # tree
     tree_parser = subparsers.add_parser('tree', help='Walk AT-SPI2 tree')
@@ -379,7 +381,7 @@ def main(argv=None):
     ss_parser = subparsers.add_parser('screenshot', help='Capture screenshot')
     ss_parser.add_argument('--annotate', action='store_true',
                            help='Add Set-of-Mark overlays')
-    ss_parser.add_argument('--scale', type=float, default=1.0,
+    ss_parser.add_argument('--scale', type=float, default=_default_scale,
                            help='Display scale factor')
     ss_parser.add_argument('--output', '-o', default=None,
                            help='Output path for screenshot PNG')
@@ -415,7 +417,7 @@ def main(argv=None):
     desc_parser.add_argument('--app', default=None, help='Filter to app name')
     desc_parser.add_argument('--annotate', action='store_true',
                              help='Add Set-of-Mark overlays')
-    desc_parser.add_argument('--scale', type=float, default=1.0,
+    desc_parser.add_argument('--scale', type=float, default=_default_scale,
                              help='Display scale factor')
 
     args = parser.parse_args(argv)

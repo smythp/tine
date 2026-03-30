@@ -226,6 +226,7 @@ class TestScreenshotCommand:
         monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
         monkeypatch.setattr(tine.screenshot, 'annotate', fake_annotate)
         monkeypatch.setattr(tine.screenshot, 'list_windows', lambda: _make_windows())
+        monkeypatch.setenv('TINE_SHADOW_OFFSET', '0')  # isolate window-offset behaviour
 
         import tine.cli as cli_mod
         cli_mod.main(['screenshot', '--annotate'])
@@ -1122,6 +1123,7 @@ class TestWindowOffsetResolution:
         monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
         monkeypatch.setattr(tine.screenshot, 'annotate', fake_annotate)
         monkeypatch.setattr(tine.screenshot, 'list_windows', lambda: _make_windows())
+        monkeypatch.setenv('TINE_SHADOW_OFFSET', '0')  # isolate window-offset behaviour
 
         import tine.cli as cli_mod
         cli_mod.main(['screenshot', '--annotate'])
