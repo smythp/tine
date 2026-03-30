@@ -20,7 +20,8 @@ from tine.refs import bbox_center, load_ref_cache
 # Absolute axis range — uinput maps [0, ABS_MAX] to the full screen
 ABS_MAX = 65535
 
-# Display configuration from environment (archgnome defaults: 1920x1080 physical, 1.25x scale)
+# Display configuration from environment.
+# archgnome: TINE_PHYSICAL_WIDTH=1920 TINE_PHYSICAL_HEIGHT=1080 TINE_SCALE=1.25
 PHYSICAL_WIDTH = int(os.environ.get('TINE_PHYSICAL_WIDTH', '1920'))
 PHYSICAL_HEIGHT = int(os.environ.get('TINE_PHYSICAL_HEIGHT', '1080'))
 SCALE_FACTOR = float(os.environ.get('TINE_SCALE', '1.0'))

@@ -37,7 +37,7 @@ def _walk(node, depth=0):
     try:
         comp = node.get_component_iface()
         if comp:
-            rect = comp.get_extents(Atspi.CoordType.SCREEN)
+            rect = comp.get_extents(Atspi.CoordType.WINDOW)
             bbox = {'x': rect.x, 'y': rect.y, 'w': rect.width, 'h': rect.height}
     except Exception:
         pass
