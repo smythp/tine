@@ -197,20 +197,20 @@ def _cmd_screenshot(args):
         if real_refs:
             app_name = cache.get('_app', '')
             offset = _resolve_window_offset(app_name)
-            shadow = int(os.environ.get('TINE_SHADOW_OFFSET', '25'))
 
-            # Create adjusted copy with screen coords
+            # Create adjusted copy with screen-logical coords
             adjusted = {}
             for ref_id, ref_data in real_refs.items():
                 if not isinstance(ref_data, dict):
-                    # Corrupt/null cache entry — skip rather than crash
                     continue
                 adjusted_data = copy.deepcopy(ref_data)
                 bbox = adjusted_data.get('bbox') or {}
-                # Write bbox back in case it was None or missing
                 adjusted_data['bbox'] = bbox
-                bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0] + shadow
-                bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1] + shadow
+                coord_space = bbox.get('coord', 'window')
+                if coord_space != 'screen':
+                    # Window-relative — add frame_rect position
+                    bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0]
+                    bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1]
                 adjusted[ref_id] = adjusted_data
 
             tine.screenshot.annotate(path, adjusted, scale=args.scale)
@@ -258,6 +258,52 @@ def _cmd_click(args):
     else:
         print(f'Error: "{target}" is not a valid ref (ref_N) or coordinates (x,y)',
               file=sys.stderr)
+        sys.exit(1)
+
+
+def _cmd_activate(args):
+    """Handle 'activate' subcommand — invoke AT-SPI2 action on a ref element."""
+    target = args.target
+    if not re.match(r'^ref_\d+$', target):
+        print(f'Error: activate requires a ref (ref_N), got "{target}"',
+              file=sys.stderr)
+        sys.exit(1)
+
+    cache = tine.refs.load_ref_cache(_ref_cache_path())
+    if not cache:
+        print('Error: no ref cache found. Run "tine tree" first.',
+              file=sys.stderr)
+        sys.exit(1)
+
+    if target not in cache:
+        print(f'Error: {target} not found in ref cache', file=sys.stderr)
+        sys.exit(1)
+
+    ref = cache[target]
+    if not isinstance(ref, dict):
+        print(f'Error: ref cache entry for {target} is corrupt', file=sys.stderr)
+        sys.exit(1)
+
+    app_name = cache.get('_app', '')
+    if not app_name:
+        print('Error: no _app in ref cache — cannot locate element', file=sys.stderr)
+        sys.exit(1)
+
+    role = ref.get('role', '')
+    name = ref.get('name', '')
+
+    cmd = [sys.executable, '-m', 'tine.atspi_activate', app_name, role, name]
+    if args.action:
+        cmd.append(args.action)
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        print('Error: AT-SPI2 activate timed out', file=sys.stderr)
+        sys.exit(1)
+
+    if result.returncode != 0:
+        print(f'Error: {result.stderr.strip()}', file=sys.stderr)
         sys.exit(1)
 
 
@@ -395,6 +441,13 @@ def main(argv=None):
     click_parser.add_argument('--double', action='store_true',
                               help='Double click')
 
+    # activate
+    act_parser = subparsers.add_parser('activate',
+                                       help='Activate ref via AT-SPI2 action')
+    act_parser.add_argument('target', help='ref_N')
+    act_parser.add_argument('--action', default=None,
+                            help='Action name (default: first available)')
+
     # type
     type_parser = subparsers.add_parser('type', help='Type text')
     type_parser.add_argument('text', help='Text to type')
@@ -430,6 +483,7 @@ def main(argv=None):
         'tree': _cmd_tree,
         'screenshot': _cmd_screenshot,
         'click': _cmd_click,
+        'activate': _cmd_activate,
         'type': _cmd_type,
         'key': _cmd_key,
         'windows': _cmd_windows,

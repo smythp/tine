@@ -190,11 +190,15 @@ def assign_refs(tree):
             counter[0] += 1
             ref_id = f'ref_{counter[0]}'
             result['ref'] = ref_id
-            ref_cache[ref_id] = {
+            entry = {
                 'role': node['role'],
                 'name': node.get('name', ''),
                 'bbox': node.get('bbox', {}),
             }
+            actions = node.get('actions', [])
+            if actions:
+                entry['actions'] = actions
+            ref_cache[ref_id] = entry
 
         # Recurse into children
         result['children'] = [walk(c) for c in node.get('children', [])]

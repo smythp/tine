@@ -101,7 +101,6 @@ def default_scale(monkeypatch):
     monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
     monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
     monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.0)
-    monkeypatch.setattr(tine.input, 'SHADOW_OFFSET', 0)
 
 
 # ---------------------------------------------------------------------------
@@ -260,8 +259,8 @@ class TestClickRef:
         assert x_vals[0] == int(522 * 65535 / 1920)
         assert y_vals[0] == int(341 * 65535 / 1080)
 
-    def test_click_ref_with_scale_and_shadow(self, fake_uinput, monkeypatch):
-        """Full coordinate pipeline: window_offset + shadow + center, then scale."""
+    def test_click_ref_with_scale_window_coords(self, fake_uinput, monkeypatch):
+        """Window-relative coords: window_offset + center, then scale."""
         import tine.input
         from tine.input import click_ref
         from evdev import ecodes
@@ -269,20 +268,47 @@ class TestClickRef:
         monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
         monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
         monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.25)
-        monkeypatch.setattr(tine.input, 'SHADOW_OFFSET', 25)
 
         cache = _make_ref_cache()
-        # ref_2: bbox x=100, y=50, w=200, h=30
+        # ref_2: bbox x=100, y=50, w=200, h=30 (coord=window by default)
         # center: (200, 65)
-        # logical = window_offset + shadow + center = (0+25+200, 0+25+65) = (225, 90)
-        # physical = logical * 1.25 = (281.25, 112.5) -> (281, 112)
-        click_ref('ref_2', cache, window_offset=(0, 0))
+        # logical = window_offset + center = (10+200, 20+65) = (210, 85)
+        # physical = logical * 1.25 = (262.5, 106.25) -> (262, 106)
+        click_ref('ref_2', cache, window_offset=(10, 20))
 
         abs_writes = fake_uinput.abs_writes
         x_vals = [v for code, v in abs_writes if code == ecodes.ABS_X]
         y_vals = [v for code, v in abs_writes if code == ecodes.ABS_Y]
-        assert x_vals[0] == int(281 * 65535 / 1920)
-        assert y_vals[0] == int(112 * 65535 / 1080)
+        assert x_vals[0] == int(262 * 65535 / 1920)
+        assert y_vals[0] == int(106 * 65535 / 1080)
+
+    def test_click_ref_screen_coords_ignores_offset(self, fake_uinput, monkeypatch):
+        """Screen-space coords: offset is ignored, center used directly."""
+        import tine.input
+        from tine.input import click_ref
+        from evdev import ecodes
+
+        monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
+        monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
+        monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.25)
+
+        cache = {
+            'ref_1': {
+                'role': 'link',
+                'name': 'Learn more',
+                'bbox': {'x': 282, 'y': 311, 'w': 86, 'h': 19, 'coord': 'screen'},
+            },
+        }
+        # center: (282+43, 311+9) = (325, 320)
+        # screen coords — offset ignored
+        # physical = (325*1.25, 320*1.25) = (406.25, 400.0) -> (406, 400)
+        click_ref('ref_1', cache, window_offset=(128, 60))
+
+        abs_writes = fake_uinput.abs_writes
+        x_vals = [v for code, v in abs_writes if code == ecodes.ABS_X]
+        y_vals = [v for code, v in abs_writes if code == ecodes.ABS_Y]
+        assert x_vals[0] == int(406 * 65535 / 1920)
+        assert y_vals[0] == int(400 * 65535 / 1080)
 
     def test_click_ref_unknown_ref_raises(self, fake_uinput, default_scale):
         from tine.input import click_ref

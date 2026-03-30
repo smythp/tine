@@ -32,13 +32,27 @@ def _walk(node, depth=0):
     role = node.get_role_name() or 'unknown'
     name = node.get_name() or ''
 
-    # Bounding box
-    bbox = {'x': 0, 'y': 0, 'w': 0, 'h': 0}
+    # Bounding box — try SCREEN coords first (absolute, no offset needed).
+    # GTK4 on Wayland returns (0,0) for SCREEN, so fall back to WINDOW
+    # (relative to frame_rect, needs window offset added downstream).
+    # The "coord" field tells downstream code which space we're in.
+    #
+    # Heuristic: trust SCREEN only if x or y is non-zero. GTK4 on Wayland
+    # always returns (0,0,w,h) for SCREEN — valid dimensions but zeroed
+    # position. An element genuinely at screen (0,0) would be under the
+    # top-left panel pixel, which is never an interactive target.
+    bbox = {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'coord': 'window'}
     try:
         comp = node.get_component_iface()
         if comp:
-            rect = comp.get_extents(Atspi.CoordType.WINDOW)
-            bbox = {'x': rect.x, 'y': rect.y, 'w': rect.width, 'h': rect.height}
+            scr = comp.get_extents(Atspi.CoordType.SCREEN)
+            if scr.x != 0 or scr.y != 0:
+                bbox = {'x': scr.x, 'y': scr.y, 'w': scr.width, 'h': scr.height,
+                        'coord': 'screen'}
+            else:
+                win = comp.get_extents(Atspi.CoordType.WINDOW)
+                bbox = {'x': win.x, 'y': win.y, 'w': win.width, 'h': win.height,
+                        'coord': 'window'}
     except Exception:
         pass
 

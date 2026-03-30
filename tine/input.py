@@ -24,7 +24,6 @@ ABS_MAX = 65535
 PHYSICAL_WIDTH = int(os.environ.get('TINE_PHYSICAL_WIDTH', '1920'))
 PHYSICAL_HEIGHT = int(os.environ.get('TINE_PHYSICAL_HEIGHT', '1080'))
 SCALE_FACTOR = float(os.environ.get('TINE_SCALE', '1.0'))
-SHADOW_OFFSET = int(os.environ.get('TINE_SHADOW_OFFSET', '25'))
 
 # Button mapping for evdev
 BUTTON_CODES = {
@@ -231,10 +230,11 @@ def click(x, y, button='left', double=False):
 def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=False):
     """Click at the center of a ref's bounding box.
 
-    Applies the full coordinate pipeline:
-      logical = window_pos + shadow_offset + element_window_coords
-      physical = logical * scale_factor
-      abs_value = physical * 65535 / physical_display_dimension
+    Coordinate pipeline depends on bbox['coord']:
+      'screen': bbox is already in screen-logical coords (e.g. Firefox)
+        physical = center * scale_factor
+      'window': bbox is relative to window frame_rect (e.g. GTK4 on Wayland)
+        physical = (window_offset + center) * scale_factor
 
     Args:
         ref_id: Ref ID (e.g. 'ref_1').
@@ -260,14 +260,17 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
     if center is None:
         raise ValueError(f'Ref {ref_id} has invalid bbox: {ref["bbox"]}')
 
-    # Element coordinates are relative to the window content area.
-    # Window offset is the surface position (includes CSD shadow).
-    # Shadow offset accounts for the CSD shadow margin.
-    shadow = SHADOW_OFFSET
+    bbox = ref['bbox']
+    coord_space = bbox.get('coord', 'window')
 
-    # Logical screen coordinates (before scaling)
-    screen_logical_x = window_offset[0] + shadow + center[0]
-    screen_logical_y = window_offset[1] + shadow + center[1]
+    if coord_space == 'screen':
+        # Already in screen-logical coords — no offset needed
+        screen_logical_x = center[0]
+        screen_logical_y = center[1]
+    else:
+        # Window-relative — add frame_rect position
+        screen_logical_x = window_offset[0] + center[0]
+        screen_logical_y = window_offset[1] + center[1]
 
     # Physical screen coordinates (after scaling)
     screen_physical_x = screen_logical_x * SCALE_FACTOR
