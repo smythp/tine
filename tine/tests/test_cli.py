@@ -1369,6 +1369,34 @@ class TestWindowOffsetResolution:
         err = capsys.readouterr().err
         assert 'offset' in err.lower()
 
+    def test_offset_prefers_focused_among_duplicates(
+            self, monkeypatch, tmp_path):
+        """When multiple windows match the same wm_class, prefer the focused one.
+
+        GNOME Shell can return duplicate entries for a single app window
+        (e.g. shadow/buffer actor + real actor). The focused window has
+        the correct frame_rect position.
+        """
+        windows = [
+            {
+                'title': 'Calculator',
+                'wm_class': 'org.gnome.Calculator',
+                'app_id': 'org.gnome.Calculator',
+                'x': 588, 'y': 140, 'width': 360, 'height': 616,
+                'focused': False,
+            },
+            {
+                'title': 'Calculator',
+                'wm_class': 'org.gnome.Calculator',
+                'app_id': 'org.gnome.Calculator',
+                'x': 638, 'y': 190, 'width': 360, 'height': 616,
+                'focused': True,
+            },
+        ]
+        calls = self._click_ref_calls_for(
+            monkeypatch, tmp_path, 'gnome-calculator', windows)
+        assert calls[0]['window_offset'] == (638, 190)
+
 
 # ---------------------------------------------------------------------------
 # _normalize_app_name unit tests

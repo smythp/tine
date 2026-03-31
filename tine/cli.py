@@ -81,6 +81,15 @@ def _normalize_app_name(name):
     return s
 
 
+def _pick_best_match(matches):
+    """From a list of matching windows, prefer the focused one."""
+    for w in matches:
+        if w.get('focused'):
+            return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+    w = matches[0]
+    return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+
+
 def _resolve_window_offset(app_name):
     """Match app name against window list to get (x, y) offset.
 
@@ -88,6 +97,9 @@ def _resolve_window_offset(app_name):
     1. Normalized wm_class substring (handles AT-SPI2 hyphens vs reverse-domain dots)
     2. Normalized app_id substring (for GNOME extensions that expose this field)
     3. Raw title substring (case-insensitive, last resort)
+
+    When multiple windows match (e.g. duplicate entries from GNOME Shell),
+    the focused window is preferred.
 
     Falls back to (0, 0) with stderr warning.
     """
@@ -107,24 +119,23 @@ def _resolve_window_offset(app_name):
 
     # 1. Normalized wm_class substring match
     if app_norm:
-        for w in windows:
-            wm_class = w.get('wm_class', '')
-            if wm_class and app_norm in _normalize_app_name(wm_class):
-                return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+        matches = [w for w in windows
+                   if w.get('wm_class') and app_norm in _normalize_app_name(w['wm_class'])]
+        if matches:
+            return _pick_best_match(matches)
 
     # 2. Normalized app_id substring match
     if app_norm:
-        for w in windows:
-            app_id = w.get('app_id', '')
-            if app_id and app_norm in _normalize_app_name(app_id):
-                return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+        matches = [w for w in windows
+                   if w.get('app_id') and app_norm in _normalize_app_name(w['app_id'])]
+        if matches:
+            return _pick_best_match(matches)
 
     # 3. Fall back to raw title substring match (case-insensitive)
     app_lower = app_name.lower()
-    for w in windows:
-        title = w.get('title', '')
-        if app_lower in title.lower():
-            return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
+    matches = [w for w in windows if app_lower in w.get('title', '').lower()]
+    if matches:
+        return _pick_best_match(matches)
 
     print(f'Warning: no window match for "{app_name}" — using offset (0, 0)',
           file=sys.stderr)
