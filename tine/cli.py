@@ -492,3 +492,7 @@ def main(argv=None):
     }
 
     commands[args.command](args)
+
+
+if __name__ == '__main__':
+    main()

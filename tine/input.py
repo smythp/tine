@@ -4,6 +4,11 @@ All input goes through a single UInput device (tine-input) so the Wayland
 compositor tracks focus consistently. Mouse uses EV_ABS, keyboard/typing
 use EV_KEY with character-to-keycode mapping.
 
+The device is created with INPUT_PROP_DIRECT so libinput classifies it as a
+direct-touch device (like a touchscreen) and maps ABS coordinates to the
+display. Without this property, the device is classified as a joystick and
+ABS events are not mapped to screen positions.
+
 The UInput device is created lazily on first use and cached for the process lifetime.
 Device creation takes ~0.5s for the compositor to recognize it.
 """
@@ -148,9 +153,11 @@ def _get_uinput():
         ],
         ecodes.EV_KEY: [
             ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
+            ecodes.BTN_TOUCH,
         ] + [code for code in KEYCODES.values()],
     }
-    _uinput_device = UInput(capabilities, name='tine-input')
+    _uinput_device = UInput(capabilities, name='tine-input',
+                            input_props=[ecodes.INPUT_PROP_DIRECT])
     # Give compositor time to recognize the new device
     time.sleep(0.3)
     return _uinput_device
@@ -209,6 +216,10 @@ def click(x, y, button='left', double=False):
         raise ValueError(f'Invalid button: {button}. Must be one of: {", ".join(BUTTON_CODES)}')
 
     move(x, y)
+    # The compositor needs time to process the ABS position update before
+    # the button click, otherwise the click registers at the old cursor
+    # position. 100ms is enough for Mutter on GNOME 49 Wayland.
+    time.sleep(0.1)
 
     ui = _get_uinput()
     btn_code = BUTTON_CODES[button]
