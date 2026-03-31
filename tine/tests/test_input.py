@@ -1,7 +1,6 @@
 """Tests for tine input: click, click_ref, type_text, key_combo, move.
 
-Mouse/click/key operations use evdev UInput. Text typing still uses ydotool.
-Tests mock the UInput device for mouse/click/key tests and subprocess for type tests.
+All input operations use evdev UInput. Tests mock the UInput device via FakeUInput.
 """
 
 import json
@@ -67,7 +66,7 @@ class FakeUInput:
 
 
 class FakeSubprocess:
-    """Records subprocess.run calls for assertion (used for ydotool type tests)."""
+    """Records subprocess.run calls for assertion."""
 
     def __init__(self):
         self.calls = []
@@ -379,65 +378,81 @@ class TestClickRef:
 # ---------------------------------------------------------------------------
 
 class TestTypeText:
-    """tine.input.type_text(text) -> types text via ydotool (still subprocess)."""
+    """tine.input.type_text(text) -> types text via evdev key events."""
 
-    def test_type_text_calls_ydotool(self, monkeypatch):
-        import subprocess
-        fake = FakeSubprocess()
-        monkeypatch.setattr(subprocess, 'run', fake.run)
-        from tine.input import type_text
+    def test_type_text_basic(self, fake_uinput, default_scale):
+        from tine.input import type_text, KEYCODES
 
-        type_text('hello world')
+        type_text('hello')
 
-        cmd = fake.last_cmd_str()
-        assert 'ydotool' in cmd
-        assert 'type' in cmd
-        assert 'hello world' in cmd
+        key_writes = fake_uinput.key_writes
+        # Each char: press (value=1) + release (value=0)
+        expected_keycodes = [KEYCODES[c] for c in 'hello']
+        presses = [(code, val) for code, val in key_writes if val == 1]
+        releases = [(code, val) for code, val in key_writes if val == 0]
+        assert len(presses) == 5
+        assert len(releases) == 5
+        assert [code for code, _ in presses] == expected_keycodes
 
-    def test_type_text_empty_string(self, monkeypatch):
-        import subprocess
-        fake = FakeSubprocess()
-        monkeypatch.setattr(subprocess, 'run', fake.run)
+    def test_type_text_empty_string(self, fake_uinput, default_scale):
         from tine.input import type_text
 
         type_text('')
-        assert len(fake.calls) == 1
 
-    def test_type_text_special_chars(self, monkeypatch):
-        import subprocess
-        fake = FakeSubprocess()
-        monkeypatch.setattr(subprocess, 'run', fake.run)
+        assert len(fake_uinput.events) == 0
+        assert fake_uinput.syn_count == 0
+
+    def test_type_text_special_chars(self, fake_uinput, default_scale):
+        """Shifted punctuation produces shift press/release around the keycode."""
+        from tine.input import type_text, KEYCODES
+
+        type_text('A!')
+
+        key_writes = fake_uinput.key_writes
+        shift = KEYCODES['shift']
+        # 'A' needs shift+a, '!' needs shift+1
+        # Expect: shift down, a down, a up, shift up, shift down, 1 down, 1 up, shift up
+        assert key_writes[0] == (shift, 1)   # shift press for A
+        assert key_writes[1] == (KEYCODES['a'], 1)
+        assert key_writes[2] == (KEYCODES['a'], 0)
+        assert key_writes[3] == (shift, 0)   # shift release for A
+        assert key_writes[4] == (shift, 1)   # shift press for !
+        assert key_writes[5] == (KEYCODES['1'], 1)
+        assert key_writes[6] == (KEYCODES['1'], 0)
+        assert key_writes[7] == (shift, 0)   # shift release for !
+
+    def test_type_text_with_delay(self, fake_uinput, default_scale, monkeypatch):
+        import time
+        sleeps = []
+        monkeypatch.setattr(time, 'sleep', lambda s: sleeps.append(s))
         from tine.input import type_text
 
-        type_text('echo "hello" > /tmp/test.txt && cat /tmp/test.txt')
-        assert len(fake.calls) == 1
+        type_text('ab', delay_ms=50)
 
-    def test_type_text_with_delay(self, monkeypatch):
-        import subprocess
-        fake = FakeSubprocess()
-        monkeypatch.setattr(subprocess, 'run', fake.run)
+        assert all(s == 0.05 for s in sleeps)
+        assert len(sleeps) == 2  # one delay per character
+
+    def test_type_text_unshifted_punctuation(self, fake_uinput, default_scale):
+        """Unshifted punctuation (dash, dot, etc.) sends keycode without shift."""
+        from tine.input import type_text, KEYCODES
+
+        type_text('-.')
+
+        key_writes = fake_uinput.key_writes
+        shift = KEYCODES['shift']
+        # No shift events
+        assert (shift, 1) not in key_writes
+        assert key_writes[0] == (KEYCODES['minus'], 1)
+        assert key_writes[1] == (KEYCODES['minus'], 0)
+        assert key_writes[2] == (KEYCODES['dot'], 1)
+        assert key_writes[3] == (KEYCODES['dot'], 0)
+
+    def test_type_text_unmapped_char_raises(self, fake_uinput, default_scale):
+        """Characters not in CHAR_MAP raise ValueError."""
         from tine.input import type_text
 
-        type_text('hello', delay_ms=50)
-
-        cmd = fake.last_cmd
-        assert '--key-delay' in cmd
-        delay_idx = cmd.index('--key-delay')
-        assert cmd[delay_idx + 1] == '50'
-
-    def test_type_text_dash_prefix(self, monkeypatch):
-        """type_text uses -- separator so text starting with - isn't parsed as flag."""
-        import subprocess
-        fake = FakeSubprocess()
-        monkeypatch.setattr(subprocess, 'run', fake.run)
-        from tine.input import type_text
-
-        type_text('--help')
-
-        cmd = fake.last_cmd
-        separator_idx = cmd.index('--')
-        text_idx = cmd.index('--help')
-        assert separator_idx < text_idx
+        with pytest.raises(ValueError, match='No keycode mapping'):
+            type_text('\x00')
 
     def test_type_text_none_raises_valueerror(self, monkeypatch):
         from tine.input import type_text
@@ -456,18 +471,6 @@ class TestTypeText:
 
         with pytest.raises(ValueError, match='delay_ms'):
             type_text('hello', delay_ms=-1)
-
-    def test_type_text_raises_on_failure(self, monkeypatch):
-        import subprocess
-
-        def fail(cmd, **kwargs):
-            return type('R', (), {'returncode': 1, 'stdout': '', 'stderr': 'err'})()
-
-        monkeypatch.setattr(subprocess, 'run', fail)
-        from tine.input import type_text
-
-        with pytest.raises(RuntimeError):
-            type_text('hello')
 
 
 # ---------------------------------------------------------------------------
