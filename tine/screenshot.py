@@ -312,7 +312,7 @@ def target_subcell_center(x, y, pick, region_size=100):
         raise ValueError(f'pick must be 1-9, got {pick}')
 
     cell_size = region_size / 3
-    half = region_size / 2
+    half = region_size // 2
 
     # Numpad layout: column (0=left, 1=center, 2=right)
     # and row (0=bottom, 1=middle, 2=top)
