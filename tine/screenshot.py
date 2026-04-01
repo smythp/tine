@@ -288,6 +288,123 @@ def grid_overlay(image_path, grid_size=100, output_path=None):
     return output_path
 
 
+def target_subcell_center(x, y, pick, region_size=100):
+    """Return the (new_x, new_y) center of a sub-cell in a 3x3 grid around (x, y).
+
+    Sub-cells use numpad layout:
+        7 | 8 | 9
+        4 | 5 | 6
+        1 | 2 | 3
+
+    Args:
+        x: Center x coordinate of the target region.
+        y: Center y coordinate of the target region.
+        pick: Sub-cell number 1-9 (numpad layout).
+        region_size: Size of the 3x3 region in pixels.
+
+    Returns:
+        (new_x, new_y) center of the chosen sub-cell.
+
+    Raises:
+        ValueError: If pick is not 1-9.
+    """
+    if not (1 <= pick <= 9):
+        raise ValueError(f'pick must be 1-9, got {pick}')
+
+    cell_size = region_size / 3
+    half = region_size // 2
+
+    # Numpad layout: column (0=left, 1=center, 2=right)
+    # and row (0=bottom, 1=middle, 2=top)
+    col = (pick - 1) % 3       # 1,4,7->0  2,5,8->1  3,6,9->2
+    row = (pick - 1) // 3      # 1,2,3->0  4,5,6->1  7,8,9->2
+
+    # Convert to pixel offsets from top-left of region
+    # row 0 = bottom = largest y, row 2 = top = smallest y
+    new_x = int(x - half + col * cell_size + cell_size / 2)
+    new_y = int(y - half + (2 - row) * cell_size + cell_size / 2)
+
+    return (new_x, new_y)
+
+
+def target_overlay(image_path, x, y, region_size=100, output_path=None):
+    """Draw a crosshair and 3x3 sub-grid at (x, y) on a screenshot.
+
+    The sub-grid cells are labeled 1-9 in numpad layout:
+        7 | 8 | 9
+        4 | 5 | 6
+        1 | 2 | 3
+
+    Args:
+        image_path: Path to input screenshot PNG.
+        x: Target x coordinate in physical pixels.
+        y: Target y coordinate in physical pixels.
+        region_size: Size of the 3x3 region in pixels (default 100).
+        output_path: Path to save annotated image. If None, overwrites input.
+
+    Returns:
+        Path to the annotated image.
+    """
+    if region_size <= 0:
+        raise ValueError(f'region_size must be positive, got {region_size}')
+
+    if output_path is None:
+        output_path = image_path
+
+    img = Image.open(image_path).convert('RGB')
+    draw = ImageDraw.Draw(img)
+
+    color = (0, 255, 255)  # cyan
+    half = region_size // 2
+    cell_size = region_size / 3
+    img_w, img_h = img.size
+
+    # Region bounds
+    rx0 = x - half
+    ry0 = y - half
+    rx1 = x + half
+    ry1 = y + half
+
+    # Draw crosshair lines (full image width/height)
+    draw.line([(x, 0), (x, img_h)], fill=color, width=1)
+    draw.line([(0, y), (img_w, y)], fill=color, width=1)
+
+    # Draw 3x3 grid box outline
+    draw.rectangle([rx0, ry0, rx1, ry1], outline=color, width=2)
+
+    # Draw internal grid lines (2 vertical, 2 horizontal)
+    for i in range(1, 3):
+        gx = int(rx0 + i * cell_size)
+        draw.line([(gx, ry0), (gx, ry1)], fill=color, width=1)
+        gy = int(ry0 + i * cell_size)
+        draw.line([(rx0, gy), (rx1, gy)], fill=color, width=1)
+
+    # Load font for labels
+    try:
+        font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 12)
+    except (OSError, IOError):
+        try:
+            font = ImageFont.truetype('/usr/share/fonts/TTF/DejaVuSans-Bold.ttf', 12)
+        except (OSError, IOError):
+            font = ImageFont.load_default()
+
+    # Label cells 1-9 (numpad layout)
+    for pick in range(1, 10):
+        cx, cy = target_subcell_center(x, y, pick, region_size)
+        label = str(pick)
+        label_bbox = draw.textbbox((0, 0), label, font=font)
+        lw = label_bbox[2] - label_bbox[0]
+        lh = label_bbox[3] - label_bbox[1]
+        lx = cx - lw // 2
+        ly = cy - lh // 2
+        # Background for readability
+        draw.rectangle([lx - 1, ly - 1, lx + lw + 1, ly + lh + 1], fill=(0, 0, 0))
+        draw.text((lx, ly), label, fill=color, font=font)
+
+    img.save(output_path)
+    return output_path
+
+
 def _col_label(index):
     """Convert a zero-based column index to a letter label (A, B, ..., Z, AA, AB, ...)."""
     result = ''
