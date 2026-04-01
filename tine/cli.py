@@ -98,7 +98,7 @@ def _resolve_window_offset(app_name):
     2. Normalized app_id substring (for GNOME extensions that expose this field)
     3. Raw title substring (case-insensitive, last resort)
 
-    When multiple windows match (e.g. duplicate entries from GNOME Shell),
+    When multiple windows match (e.g. two instances of the same app),
     the focused window is preferred.
 
     Falls back to (0, 0) with stderr warning.
