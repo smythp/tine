@@ -1,7 +1,7 @@
 """Tine CLI: AI agent interface to a GNOME Wayland desktop.
 
 Entry point: main(argv). Subcommands: tree, screenshot, click, type, key,
-windows, focus, describe.
+windows, focus, describe, target.
 """
 
 import argparse
@@ -284,6 +284,52 @@ def _cmd_click(args):
         sys.exit(1)
 
 
+def _cmd_target(args):
+    """Handle 'target' subcommand — crosshair + 3x3 sub-grid for click refinement."""
+    position = args.position
+    grid_size = args.grid_size
+    region_size = args.size if args.size is not None else grid_size
+
+    # Resolve position to (x, y) pixel coordinates
+    if re.match(r'^-?\d+,-?\d+$', position, re.ASCII):
+        parts = position.split(',')
+        x, y = int(parts[0]), int(parts[1])
+    elif re.match(r'^[A-Za-z]+\d+$', position):
+        try:
+            x, y = tine.screenshot.grid_cell_center(position, grid_size=grid_size)
+        except ValueError as e:
+            print(f'Error: {e}', file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f'Error: "{position}" is not a valid grid cell (e.g. E5) or coordinates (x,y)',
+              file=sys.stderr)
+        sys.exit(1)
+
+    # If --pick is specified, compute sub-cell center
+    if args.pick is not None:
+        try:
+            x, y = tine.screenshot.target_subcell_center(x, y, args.pick, region_size)
+        except ValueError as e:
+            print(f'Error: {e}', file=sys.stderr)
+            sys.exit(1)
+
+        # Click the target position
+        tine.input.click(x, y)
+
+        if not args.refine:
+            print(f'{x},{y}')
+            return
+
+        # --refine: take new screenshot and show 3x3 at clicked position
+        region_size = region_size // 3 or 1
+
+    # Take screenshot and draw overlay
+    path = tine.screenshot.capture(output_path=args.output)
+    tine.screenshot.target_overlay(path, x, y, region_size=region_size)
+
+    print(path)
+
+
 def _cmd_activate(args):
     """Handle 'activate' subcommand — invoke AT-SPI2 action on a ref element."""
     target = args.target
@@ -470,6 +516,21 @@ def main(argv=None):
     click_parser.add_argument('--grid-size', type=int, default=100,
                               help='Grid spacing in physical pixels (default 100)')
 
+    # target
+    target_parser = subparsers.add_parser('target',
+                                          help='Crosshair + 3x3 sub-grid for click refinement')
+    target_parser.add_argument('position', help='Grid cell (e.g. E5) or x,y coordinates')
+    target_parser.add_argument('--pick', type=int, default=None,
+                               help='Click sub-cell N (1-9, numpad layout)')
+    target_parser.add_argument('--refine', action='store_true',
+                               help='After clicking, show new 3x3 at clicked position')
+    target_parser.add_argument('--size', type=int, default=None,
+                               help='Region size in pixels (default: grid-size)')
+    target_parser.add_argument('--grid-size', type=int, default=100,
+                               help='Grid spacing in physical pixels (default 100)')
+    target_parser.add_argument('--output', '-o', default=None,
+                               help='Output path for screenshot PNG')
+
     # activate
     act_parser = subparsers.add_parser('activate',
                                        help='Activate ref via AT-SPI2 action')
@@ -512,6 +573,7 @@ def main(argv=None):
         'tree': _cmd_tree,
         'screenshot': _cmd_screenshot,
         'click': _cmd_click,
+        'target': _cmd_target,
         'activate': _cmd_activate,
         'type': _cmd_type,
         'key': _cmd_key,
