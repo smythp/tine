@@ -269,7 +269,7 @@ def grid_overlay(image_path, grid_size=100, output_path=None):
         lh = label_bbox[3] - label_bbox[1] + 4
         lx = cx - lw // 2
         ly = 2
-        draw.rectangle([lx, ly, lx + lw, ly + lh], fill=(0, 0, 0, 200))
+        draw.rectangle([lx, ly, lx + lw, ly + lh], fill=(0, 0, 0))
         draw.text((lx + 2, ly + 2), label, fill=(255, 255, 255), font=font)
 
     # Row labels (1, 2, 3, ...) along left edge
@@ -281,7 +281,7 @@ def grid_overlay(image_path, grid_size=100, output_path=None):
         lh = label_bbox[3] - label_bbox[1] + 4
         lx = 2
         ly = cy - lh // 2
-        draw.rectangle([lx, ly, lx + lw, ly + lh], fill=(0, 0, 0, 200))
+        draw.rectangle([lx, ly, lx + lw, ly + lh], fill=(0, 0, 0))
         draw.text((lx + 2, ly + 2), label, fill=(255, 255, 255), font=font)
 
     img.save(output_path)

@@ -261,7 +261,7 @@ def _cmd_click(args):
         tine.input.click_ref(target, cache, **kwargs)
 
     # Check if target is a grid cell (e.g. B3, AA12)
-    elif re.match(r'^[A-Za-z]+\d+$', target) and not target[0].isdigit():
+    elif re.match(r'^[A-Za-z]+\d+$', target):
         try:
             x, y = tine.screenshot.grid_cell_center(target, grid_size=args.grid_size)
         except ValueError as e:
