@@ -226,6 +226,9 @@ def _cmd_screenshot(args):
 
             tine.screenshot.annotate(path, adjusted, scale=args.scale)
 
+    if args.grid:
+        tine.screenshot.grid_overlay(path, grid_size=args.grid_size)
+
     print(path)
 
 
@@ -257,6 +260,15 @@ def _cmd_click(args):
             kwargs['double'] = True
         tine.input.click_ref(target, cache, **kwargs)
 
+    # Check if target is a grid cell (e.g. B3, AA12)
+    elif re.match(r'^[A-Za-z]+\d+$', target) and not target[0].isdigit():
+        try:
+            x, y = tine.screenshot.grid_cell_center(target, grid_size=args.grid_size)
+        except ValueError as e:
+            print(f'Error: {e}', file=sys.stderr)
+            sys.exit(1)
+        tine.input.click(x, y, button=args.button, double=args.double)
+
     # Check if target is coordinates (x,y pattern) — ASCII flag ensures \d
     # matches only [0-9], excluding Unicode digit codepoints that pass the
     # regex but cause int() to raise ValueError. Negative values are allowed
@@ -267,7 +279,7 @@ def _cmd_click(args):
         tine.input.click(x, y, button=args.button, double=args.double)
 
     else:
-        print(f'Error: "{target}" is not a valid ref (ref_N) or coordinates (x,y)',
+        print(f'Error: "{target}" is not a valid ref (ref_N), grid cell (e.g. B3), or coordinates (x,y)',
               file=sys.stderr)
         sys.exit(1)
 
@@ -438,6 +450,10 @@ def main(argv=None):
     ss_parser = subparsers.add_parser('screenshot', help='Capture screenshot')
     ss_parser.add_argument('--annotate', action='store_true',
                            help='Add Set-of-Mark overlays')
+    ss_parser.add_argument('--grid', action='store_true',
+                           help='Add labeled coordinate grid overlay')
+    ss_parser.add_argument('--grid-size', type=int, default=100,
+                           help='Grid spacing in physical pixels (default 100)')
     ss_parser.add_argument('--scale', type=float, default=_default_scale,
                            help='Display scale factor')
     ss_parser.add_argument('--output', '-o', default=None,
@@ -445,12 +461,14 @@ def main(argv=None):
 
     # click
     click_parser = subparsers.add_parser('click', help='Click by ref or coordinates')
-    click_parser.add_argument('target', help='ref_N or x,y')
+    click_parser.add_argument('target', help='ref_N, grid cell (e.g. B3), or x,y')
     click_parser.add_argument('--button', default='left',
                               choices=['left', 'right', 'middle'],
                               help='Mouse button: left, right, middle')
     click_parser.add_argument('--double', action='store_true',
                               help='Double click')
+    click_parser.add_argument('--grid-size', type=int, default=100,
+                              help='Grid spacing in physical pixels (default 100)')
 
     # activate
     act_parser = subparsers.add_parser('activate',
