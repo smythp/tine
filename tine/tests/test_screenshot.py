@@ -432,6 +432,180 @@ class TestAnnotate:
 
 
 # ---------------------------------------------------------------------------
+# grid_overlay() tests
+# ---------------------------------------------------------------------------
+
+class TestGridOverlay:
+    """tine.screenshot.grid_overlay(image_path, grid_size, output_path) -> gridded image."""
+
+    def test_grid_overlay_returns_path(self, tmp_path):
+        """grid_overlay() returns a valid image path."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        out_path = str(tmp_path / 'gridded.png')
+        _make_test_image(800, 600).save(img_path)
+
+        result = grid_overlay(img_path, output_path=out_path)
+        assert result == out_path
+        assert os.path.exists(out_path)
+
+        img = Image.open(out_path)
+        assert img.size == (800, 600)
+
+    def test_grid_overlay_modifies_image(self, tmp_path):
+        """grid_overlay() draws lines and labels (image differs from input)."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        out_path = str(tmp_path / 'gridded.png')
+        _make_test_image(800, 600).save(img_path)
+
+        grid_overlay(img_path, output_path=out_path)
+
+        original = Image.open(img_path)
+        gridded = Image.open(out_path)
+        assert list(original.getdata()) != list(gridded.getdata())
+
+    def test_grid_overlay_in_place(self, tmp_path):
+        """grid_overlay() with output_path=None overwrites the input."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        _make_test_image(400, 300).save(img_path)
+
+        result = grid_overlay(img_path)
+        assert result == img_path
+
+    def test_grid_overlay_custom_size(self, tmp_path):
+        """grid_overlay() with custom grid_size draws differently than default."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        out_100 = str(tmp_path / 'grid_100.png')
+        out_200 = str(tmp_path / 'grid_200.png')
+        _make_test_image(800, 600).save(img_path)
+
+        grid_overlay(img_path, grid_size=100, output_path=out_100)
+        grid_overlay(img_path, grid_size=200, output_path=out_200)
+
+        img_100 = Image.open(out_100)
+        img_200 = Image.open(out_200)
+        assert list(img_100.getdata()) != list(img_200.getdata())
+
+    def test_grid_overlay_rejects_zero_size(self, tmp_path):
+        """grid_overlay() raises ValueError for grid_size <= 0."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        _make_test_image().save(img_path)
+
+        with pytest.raises(ValueError, match='grid_size'):
+            grid_overlay(img_path, grid_size=0)
+        with pytest.raises(ValueError, match='grid_size'):
+            grid_overlay(img_path, grid_size=-50)
+
+    def test_grid_overlay_small_image(self, tmp_path):
+        """grid_overlay() handles images smaller than grid_size (just labels, no lines)."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        out_path = str(tmp_path / 'gridded.png')
+        _make_test_image(50, 50).save(img_path)
+
+        result = grid_overlay(img_path, grid_size=100, output_path=out_path)
+        assert os.path.exists(result)
+        assert Image.open(result).size == (50, 50)
+
+
+# ---------------------------------------------------------------------------
+# _col_label() tests
+# ---------------------------------------------------------------------------
+
+class TestColLabel:
+    """tine.screenshot._col_label(index) -> column letter label."""
+
+    def test_single_letters(self):
+        from tine.screenshot import _col_label
+        assert _col_label(0) == 'A'
+        assert _col_label(1) == 'B'
+        assert _col_label(25) == 'Z'
+
+    def test_double_letters(self):
+        from tine.screenshot import _col_label
+        assert _col_label(26) == 'AA'
+        assert _col_label(27) == 'AB'
+        assert _col_label(51) == 'AZ'
+        assert _col_label(52) == 'BA'
+
+
+# ---------------------------------------------------------------------------
+# parse_grid_cell() tests
+# ---------------------------------------------------------------------------
+
+class TestParseGridCell:
+    """tine.screenshot.parse_grid_cell(cell_str) -> (col, row) zero-based."""
+
+    def test_basic_cells(self):
+        from tine.screenshot import parse_grid_cell
+        assert parse_grid_cell('A1') == (0, 0)
+        assert parse_grid_cell('B3') == (1, 2)
+        assert parse_grid_cell('Z1') == (25, 0)
+
+    def test_double_letter_columns(self):
+        from tine.screenshot import parse_grid_cell
+        assert parse_grid_cell('AA1') == (26, 0)
+        assert parse_grid_cell('AB5') == (27, 4)
+
+    def test_case_insensitive(self):
+        from tine.screenshot import parse_grid_cell
+        assert parse_grid_cell('b3') == (1, 2)
+        assert parse_grid_cell('aA1') == (26, 0)
+
+    def test_invalid_format(self):
+        from tine.screenshot import parse_grid_cell
+        with pytest.raises(ValueError):
+            parse_grid_cell('3B')  # digits before letters
+        with pytest.raises(ValueError):
+            parse_grid_cell('')
+        with pytest.raises(ValueError):
+            parse_grid_cell('A')  # no row number
+        with pytest.raises(ValueError):
+            parse_grid_cell('123')  # no column letters
+
+    def test_row_zero_invalid(self):
+        from tine.screenshot import parse_grid_cell
+        with pytest.raises(ValueError):
+            parse_grid_cell('A0')  # row 0 is invalid (1-based)
+
+
+# ---------------------------------------------------------------------------
+# grid_cell_center() tests
+# ---------------------------------------------------------------------------
+
+class TestGridCellCenter:
+    """tine.screenshot.grid_cell_center(cell_str, grid_size) -> (x, y) pixel center."""
+
+    def test_a1_default_size(self):
+        from tine.screenshot import grid_cell_center
+        assert grid_cell_center('A1') == (50, 50)
+
+    def test_b3_default_size(self):
+        from tine.screenshot import grid_cell_center
+        assert grid_cell_center('B3') == (150, 250)
+
+    def test_custom_grid_size(self):
+        from tine.screenshot import grid_cell_center
+        assert grid_cell_center('A1', grid_size=200) == (100, 100)
+        assert grid_cell_center('B2', grid_size=200) == (300, 300)
+
+    def test_c1_default_size(self):
+        from tine.screenshot import grid_cell_center
+        # C = col 2, row 1 = row 0
+        assert grid_cell_center('C1') == (250, 50)
+
+
+# ---------------------------------------------------------------------------
 # list_windows() tests
 # ---------------------------------------------------------------------------
 

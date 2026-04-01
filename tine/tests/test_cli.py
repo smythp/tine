@@ -344,6 +344,107 @@ class TestScreenshotCommand:
 
         assert annotate_calls[0]['scale'] == 1.25
 
+    def test_screenshot_grid(self, monkeypatch, capsys, tmp_path):
+        """--grid calls grid_overlay on the captured screenshot."""
+        grid_calls = []
+
+        def fake_capture(output_path=None):
+            path = output_path or str(tmp_path / 'auto.png')
+            open(path, 'w').close()
+            return path
+
+        def fake_grid_overlay(image_path, grid_size=100, output_path=None):
+            grid_calls.append({'image_path': image_path, 'grid_size': grid_size})
+            return output_path or image_path
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
+        monkeypatch.setattr(tine.screenshot, 'grid_overlay', fake_grid_overlay)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot', '--grid'])
+
+        assert len(grid_calls) == 1
+        assert grid_calls[0]['grid_size'] == 100
+
+    def test_screenshot_grid_custom_size(self, monkeypatch, capsys, tmp_path):
+        """--grid --grid-size 200 passes custom size to grid_overlay."""
+        grid_calls = []
+
+        def fake_capture(output_path=None):
+            path = output_path or str(tmp_path / 'auto.png')
+            open(path, 'w').close()
+            return path
+
+        def fake_grid_overlay(image_path, grid_size=100, output_path=None):
+            grid_calls.append({'grid_size': grid_size})
+            return output_path or image_path
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
+        monkeypatch.setattr(tine.screenshot, 'grid_overlay', fake_grid_overlay)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot', '--grid', '--grid-size', '200'])
+
+        assert grid_calls[0]['grid_size'] == 200
+
+    def test_screenshot_grid_and_annotate(self, monkeypatch, capsys, tmp_path):
+        """--grid and --annotate can be combined — both get called."""
+        ref_cache_path = str(tmp_path / 'refs.json')
+        _write_ref_cache(ref_cache_path, _make_ref_cache('gnome-control-center'))
+        monkeypatch.setenv('TINE_REF_CACHE', ref_cache_path)
+
+        annotate_calls = []
+        grid_calls = []
+
+        def fake_capture(output_path=None):
+            path = output_path or str(tmp_path / 'auto.png')
+            open(path, 'w').close()
+            return path
+
+        def fake_annotate(image_path, ref_cache, output_path=None, scale=1.0):
+            annotate_calls.append(True)
+            return output_path or image_path
+
+        def fake_grid_overlay(image_path, grid_size=100, output_path=None):
+            grid_calls.append(True)
+            return output_path or image_path
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
+        monkeypatch.setattr(tine.screenshot, 'annotate', fake_annotate)
+        monkeypatch.setattr(tine.screenshot, 'grid_overlay', fake_grid_overlay)
+        monkeypatch.setattr(tine.screenshot, 'list_windows', lambda: _make_windows())
+
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot', '--annotate', '--grid'])
+
+        assert len(annotate_calls) == 1
+        assert len(grid_calls) == 1
+
+    def test_screenshot_no_grid_by_default(self, monkeypatch, capsys, tmp_path):
+        """Without --grid, grid_overlay is not called."""
+        grid_calls = []
+
+        def fake_capture(output_path=None):
+            path = output_path or str(tmp_path / 'auto.png')
+            open(path, 'w').close()
+            return path
+
+        def fake_grid_overlay(image_path, grid_size=100, output_path=None):
+            grid_calls.append(True)
+            return output_path or image_path
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', fake_capture)
+        monkeypatch.setattr(tine.screenshot, 'grid_overlay', fake_grid_overlay)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot'])
+
+        assert len(grid_calls) == 0
+
 
 # ---------------------------------------------------------------------------
 # Argument parsing — click
@@ -523,11 +624,93 @@ class TestClickCommand:
         assert 'ref cache' in err.lower() or 'tine tree' in err.lower()
 
     def test_click_bad_coords_format(self, monkeypatch, capsys):
-        """tine click 'abc' is neither ref_N nor x,y — exits with error."""
+        """tine click 'abc' is neither ref_N, grid cell, nor x,y — exits with error."""
         import tine.cli as cli_mod
         with pytest.raises(SystemExit) as exc_info:
             cli_mod.main(['click', 'abc'])
         assert exc_info.value.code != 0
+
+    def test_click_grid_cell(self, monkeypatch, tmp_path):
+        """tine click B3 resolves grid cell center and clicks there."""
+        click_calls = []
+
+        def fake_click(x, y, button='left', double=False):
+            click_calls.append({'x': x, 'y': y, 'button': button, 'double': double})
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'click', fake_click)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['click', 'B3'])
+
+        assert len(click_calls) == 1
+        # B=col 1, 3=row 2 (zero-based). Default grid_size=100.
+        # Center: (1*100+50, 2*100+50) = (150, 250)
+        assert click_calls[0]['x'] == 150
+        assert click_calls[0]['y'] == 250
+        assert click_calls[0]['button'] == 'left'
+
+    def test_click_grid_cell_custom_size(self, monkeypatch, tmp_path):
+        """tine click --grid-size 200 A1 uses custom grid spacing."""
+        click_calls = []
+
+        def fake_click(x, y, button='left', double=False):
+            click_calls.append({'x': x, 'y': y})
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'click', fake_click)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['click', '--grid-size', '200', 'A1'])
+
+        assert click_calls[0]['x'] == 100
+        assert click_calls[0]['y'] == 100
+
+    def test_click_grid_cell_case_insensitive(self, monkeypatch, tmp_path):
+        """tine click b3 works (case insensitive)."""
+        click_calls = []
+
+        def fake_click(x, y, button='left', double=False):
+            click_calls.append({'x': x, 'y': y})
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'click', fake_click)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['click', 'b3'])
+
+        assert click_calls[0]['x'] == 150
+        assert click_calls[0]['y'] == 250
+
+    def test_click_grid_cell_right_button(self, monkeypatch, tmp_path):
+        """tine click --button right A1 passes button through."""
+        click_calls = []
+
+        def fake_click(x, y, button='left', double=False):
+            click_calls.append({'button': button})
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'click', fake_click)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['click', '--button', 'right', 'A1'])
+
+        assert click_calls[0]['button'] == 'right'
+
+    def test_click_grid_cell_double(self, monkeypatch, tmp_path):
+        """tine click --double A1 sends double click."""
+        click_calls = []
+
+        def fake_click(x, y, button='left', double=False):
+            click_calls.append({'double': double})
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'click', fake_click)
+
+        import tine.cli as cli_mod
+        cli_mod.main(['click', '--double', 'A1'])
+
+        assert click_calls[0]['double'] is True
 
 
 # ---------------------------------------------------------------------------
