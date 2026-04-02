@@ -328,6 +328,14 @@ def _cmd_target(args):
     tine.screenshot.target_overlay(path, x, y, region_size=region_size)
 
     print(path)
+    print(f'target: {x},{y}')
+    print('subcells:')
+    for row_picks in [(7, 8, 9), (4, 5, 6), (1, 2, 3)]:
+        cells = []
+        for p in row_picks:
+            sx, sy = tine.screenshot.target_subcell_center(x, y, p, region_size)
+            cells.append(f'{p}: {sx},{sy}')
+        print(f'  {"  ".join(cells)}')
 
 
 def _cmd_activate(args):
