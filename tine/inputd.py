@@ -52,11 +52,10 @@ ABS_MAX = 65535
 
 def _get_input_constants():
     """Lazy import of key tables from tine.input to avoid circular imports."""
-    from tine.input import (
-        KEYCODES, CHAR_MAP, BUTTON_CODES, MODIFIER_NAMES,
-        PHYSICAL_WIDTH, PHYSICAL_HEIGHT,
-    )
-    return KEYCODES, CHAR_MAP, BUTTON_CODES, MODIFIER_NAMES, PHYSICAL_WIDTH, PHYSICAL_HEIGHT
+    from tine.input import KEYCODES, CHAR_MAP, BUTTON_CODES, MODIFIER_NAMES
+    from tine.display import get_display_config
+    config = get_display_config()
+    return KEYCODES, CHAR_MAP, BUTTON_CODES, MODIFIER_NAMES, config['physical_width'], config['physical_height']
 
 
 def _create_uinput():

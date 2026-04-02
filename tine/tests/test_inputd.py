@@ -350,14 +350,14 @@ class TestFallback:
     def test_move_falls_back_without_daemon(self, monkeypatch):
         """When daemon is unavailable, move() should use direct UInput."""
         import tine.input
+        import tine.display
         from tine.tests.test_input import FakeUInput
 
         fake = FakeUInput()
         monkeypatch.setattr(tine.input, '_uinput_device', fake)
         monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
-        monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
-        monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
-        monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.0)
+        monkeypatch.setattr(tine.display, '_cached_config',
+                            {'scale': 1.0, 'physical_width': 1920, 'physical_height': 1080})
         # Disable daemon so it doesn't try to auto-start
         monkeypatch.setattr(tine.input, '_use_daemon', False)
 
@@ -369,14 +369,14 @@ class TestFallback:
     def test_click_falls_back_without_daemon(self, monkeypatch):
         """When daemon is unavailable, click() should use direct UInput."""
         import tine.input
+        import tine.display
         from tine.tests.test_input import FakeUInput
 
         fake = FakeUInput()
         monkeypatch.setattr(tine.input, '_uinput_device', fake)
         monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
-        monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
-        monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
-        monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.0)
+        monkeypatch.setattr(tine.display, '_cached_config',
+                            {'scale': 1.0, 'physical_width': 1920, 'physical_height': 1080})
         monkeypatch.setattr(tine.input, '_use_daemon', False)
 
         tine.input.click(100, 200)
