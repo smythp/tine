@@ -13,22 +13,16 @@ The UInput device is created lazily on first use and cached for the process life
 Device creation takes ~0.5s for the compositor to recognize it.
 """
 
-import os
 import time
 
 import evdev
 from evdev import UInput, ecodes, AbsInfo
 
+from tine.display import get_display_config
 from tine.refs import bbox_center, load_ref_cache
 
 # Absolute axis range — uinput maps [0, ABS_MAX] to the full screen
 ABS_MAX = 65535
-
-# Display configuration from environment.
-# archgnome: TINE_PHYSICAL_WIDTH=1920 TINE_PHYSICAL_HEIGHT=1080 TINE_SCALE=1.25
-PHYSICAL_WIDTH = int(os.environ.get('TINE_PHYSICAL_WIDTH', '1920'))
-PHYSICAL_HEIGHT = int(os.environ.get('TINE_PHYSICAL_HEIGHT', '1080'))
-SCALE_FACTOR = float(os.environ.get('TINE_SCALE', '1.0'))
 
 # Button mapping for evdev
 BUTTON_CODES = {
@@ -170,8 +164,9 @@ def _physical_to_abs(phys_x, phys_y):
 
     The uinput absolute axis maps [0, ABS_MAX] to the full physical display.
     """
-    abs_x = int(phys_x * ABS_MAX / PHYSICAL_WIDTH)
-    abs_y = int(phys_y * ABS_MAX / PHYSICAL_HEIGHT)
+    config = get_display_config()
+    abs_x = int(phys_x * ABS_MAX / config['physical_width'])
+    abs_y = int(phys_y * ABS_MAX / config['physical_height'])
     return abs_x, abs_y
 
 
@@ -286,8 +281,9 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
         screen_logical_y = window_offset[1] + center[1]
 
     # Physical screen coordinates (after scaling)
-    screen_physical_x = screen_logical_x * SCALE_FACTOR
-    screen_physical_y = screen_logical_y * SCALE_FACTOR
+    scale = get_display_config()['scale']
+    screen_physical_x = screen_logical_x * scale
+    screen_physical_y = screen_logical_y * scale
 
     click(int(screen_physical_x), int(screen_physical_y), button=button, double=double)
 

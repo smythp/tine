@@ -16,6 +16,7 @@ import tine.input
 import tine.refs
 import tine.screenshot
 import tine.tree
+from tine.display import get_display_config
 from tine.walker import walk_atspi as _walk_atspi
 
 
@@ -494,7 +495,7 @@ def main(argv=None):
     """CLI entry point."""
     parser = argparse.ArgumentParser(prog='tine', description='AI agent desktop driver')
     subparsers = parser.add_subparsers(dest='command')
-    _default_scale = float(os.environ.get('TINE_SCALE', '1.0'))
+    _default_scale = get_display_config()['scale']
 
     # tree
     tree_parser = subparsers.add_parser('tree', help='Walk AT-SPI2 tree')
