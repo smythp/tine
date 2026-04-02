@@ -45,9 +45,22 @@ class _FakeUInput:
 
 
 def _patch_uinput():
-    """Return a patch context manager that replaces _get_uinput with a FakeUInput."""
+    """Return a patch context manager that replaces _get_uinput with a FakeUInput.
+
+    Also disables the input daemon so tests use the direct UInput path.
+    """
     fake = _FakeUInput()
-    return patch('tine.input._get_uinput', return_value=fake), fake
+    # Stack both patches so the daemon path is skipped in tests
+    from contextlib import ExitStack
+    class _CombinedPatch:
+        def __enter__(self):
+            self._stack = ExitStack()
+            self._stack.enter_context(patch('tine.input._get_uinput', return_value=fake))
+            self._stack.enter_context(patch('tine.input._use_daemon', False))
+            return self
+        def __exit__(self, *exc):
+            self._stack.__exit__(*exc)
+    return _CombinedPatch(), fake
 
 
 def make_tiny_png(path):

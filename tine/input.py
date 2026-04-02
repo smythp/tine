@@ -135,6 +135,34 @@ MODIFIER_NAMES = {'ctrl', 'lctrl', 'rctrl', 'shift', 'lshift', 'rshift',
 # Cached UInput device — created lazily on first use
 _uinput_device = None
 
+# Whether to try the daemon for input commands. Set to False to skip daemon.
+_use_daemon = True
+
+
+def _try_daemon(cmd):
+    """Try sending a command to the input daemon.
+
+    Returns the response dict if successful, None if daemon unavailable.
+    Attempts auto-start on first failure.
+    """
+    if not _use_daemon:
+        return None
+    from tine.inputd import send_command, start_daemon
+    try:
+        resp = send_command(cmd)
+        if resp.get('ok'):
+            return resp
+        # Daemon responded but command failed — return error, don't fall back
+        return resp
+    except (ConnectionError, OSError):
+        # Try auto-starting the daemon
+        if start_daemon():
+            try:
+                return send_command(cmd)
+            except (ConnectionError, OSError):
+                pass
+        return None
+
 
 def _get_uinput():
     """Get or create the cached UInput device.
@@ -177,6 +205,9 @@ def _physical_to_abs(phys_x, phys_y):
 def move(x, y):
     """Move mouse to absolute screen position (physical pixel coordinates).
 
+    Tries the persistent input daemon first for zero-warmup operation.
+    Falls back to direct UInput if daemon is unavailable.
+
     Args:
         x: X pixel coordinate (non-negative).
         y: Y pixel coordinate (non-negative).
@@ -193,6 +224,12 @@ def move(x, y):
     if x < 0 or y < 0:
         raise ValueError(f'Coordinates must be non-negative: ({x}, {y})')
 
+    resp = _try_daemon({'action': 'move', 'x': x, 'y': y})
+    if resp is not None:
+        if not resp.get('ok'):
+            raise RuntimeError(resp.get('error', 'daemon move failed'))
+        return
+
     abs_x, abs_y = _physical_to_abs(x, y)
     ui = _get_uinput()
     ui.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
@@ -202,6 +239,9 @@ def move(x, y):
 
 def click(x, y, button='left', double=False):
     """Click at absolute screen position (physical pixel coordinates).
+
+    Tries the persistent input daemon first for zero-warmup operation.
+    Falls back to direct UInput if daemon is unavailable.
 
     Args:
         x: X pixel coordinate.
@@ -214,6 +254,13 @@ def click(x, y, button='left', double=False):
     """
     if button not in BUTTON_CODES:
         raise ValueError(f'Invalid button: {button}. Must be one of: {", ".join(BUTTON_CODES)}')
+
+    resp = _try_daemon({'action': 'click', 'x': int(x), 'y': int(y),
+                        'button': button, 'double': double})
+    if resp is not None:
+        if not resp.get('ok'):
+            raise RuntimeError(resp.get('error', 'daemon click failed'))
+        return
 
     move(x, y)
     # The compositor needs time to process the ABS position update before
@@ -293,9 +340,8 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
 def type_text(text, delay_ms=None):
     """Type text via evdev key events through the tine-input device.
 
-    Each character is mapped to a keycode (with shift for uppercase/symbols)
-    and sent as a key press/release through the same UInput device used for
-    clicking, so Wayland focus is preserved.
+    Tries the persistent input daemon first for zero-warmup operation.
+    Falls back to direct UInput if daemon is unavailable.
 
     Args:
         text: String to type.
@@ -314,6 +360,15 @@ def type_text(text, delay_ms=None):
             raise ValueError(f'delay_ms must be non-negative, got {delay_ms}')
     else:
         delay_ms = 2
+
+    resp = _try_daemon({'action': 'type', 'text': text, 'delay_ms': delay_ms})
+    if resp is not None:
+        if not resp.get('ok'):
+            error = resp.get('error', 'daemon type failed')
+            if 'No keycode mapping' in error:
+                raise ValueError(error)
+            raise RuntimeError(error)
+        return
 
     delay_s = delay_ms / 1000.0
     ui = _get_uinput()
@@ -345,6 +400,9 @@ def type_text(text, delay_ms=None):
 def key_combo(combo_str):
     """Press a key combination via evdev.
 
+    Tries the persistent input daemon first for zero-warmup operation.
+    Falls back to direct UInput if daemon is unavailable.
+
     Parses human-readable combo strings like 'ctrl+c', 'alt+f4', 'ctrl+shift+t'.
     Modifiers are pressed first in order, then the key, then all released in reverse.
 
@@ -363,12 +421,24 @@ def key_combo(combo_str):
     if not parts:
         raise ValueError('Empty key combo')
 
+    # Validate keys before trying daemon — fail fast on unknown keys
+    for part in parts:
+        if part not in KEYCODES:
+            raise ValueError(f'Unknown key: {part}. Known keys: {", ".join(sorted(KEYCODES))}')
+
+    resp = _try_daemon({'action': 'key', 'combo': combo_str})
+    if resp is not None:
+        if not resp.get('ok'):
+            error = resp.get('error', 'daemon key failed')
+            if 'Unknown key' in error:
+                raise ValueError(error)
+            raise RuntimeError(error)
+        return
+
     # Separate modifiers and regular keys
     modifiers = []
     keys = []
     for part in parts:
-        if part not in KEYCODES:
-            raise ValueError(f'Unknown key: {part}. Known keys: {", ".join(sorted(KEYCODES))}')
         if part in MODIFIER_NAMES:
             modifiers.append(KEYCODES[part])
         else:

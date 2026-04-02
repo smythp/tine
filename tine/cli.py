@@ -13,6 +13,7 @@ import sys
 
 import tine.describe
 import tine.input
+import tine.inputd
 import tine.refs
 import tine.screenshot
 import tine.tree
@@ -446,6 +447,36 @@ def _cmd_focus(args):
     sys.exit(1)
 
 
+def _cmd_inputd(args):
+    """Handle 'inputd' subcommand — manage the persistent input daemon."""
+    sub = args.inputd_action
+
+    if sub == 'start':
+        if tine.inputd.daemon_available():
+            print('Daemon already running.')
+        elif tine.inputd.start_daemon():
+            print('Daemon started.')
+        else:
+            print('Error: failed to start daemon', file=sys.stderr)
+            sys.exit(1)
+
+    elif sub == 'stop':
+        if tine.inputd.stop_daemon():
+            print('Daemon stopped.')
+        else:
+            print('Daemon not running.', file=sys.stderr)
+
+    elif sub == 'status':
+        if tine.inputd.daemon_available():
+            print('Daemon is running.')
+        else:
+            print('Daemon is not running.')
+
+    else:
+        print(f'Unknown inputd action: {sub}', file=sys.stderr)
+        sys.exit(1)
+
+
 def _cmd_describe(args):
     """Handle 'describe' subcommand."""
     try:
@@ -555,6 +586,11 @@ def main(argv=None):
     focus_parser = subparsers.add_parser('focus', help='Focus a window')
     focus_parser.add_argument('app', help='App name to focus')
 
+    # inputd
+    inputd_parser = subparsers.add_parser('inputd', help='Manage persistent input daemon')
+    inputd_parser.add_argument('inputd_action', choices=['start', 'stop', 'status'],
+                               help='start, stop, or status')
+
     # describe
     desc_parser = subparsers.add_parser('describe', help='Combined desktop state')
     desc_parser.add_argument('--app', default=None, help='Filter to app name')
@@ -580,6 +616,7 @@ def main(argv=None):
         'windows': _cmd_windows,
         'focus': _cmd_focus,
         'describe': _cmd_describe,
+        'inputd': _cmd_inputd,
     }
 
     commands[args.command](args)
