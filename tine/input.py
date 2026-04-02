@@ -158,8 +158,10 @@ def _get_uinput():
     }
     _uinput_device = UInput(capabilities, name='tine-input',
                             input_props=[ecodes.INPUT_PROP_DIRECT])
-    # Give compositor time to recognize the new device
-    time.sleep(0.3)
+    # Give compositor time to recognize the new device.
+    # Mutter on GNOME 49 Wayland needs ~2s to register a new uinput device
+    # via libinput. Shorter delays are unreliable — clicks silently go nowhere.
+    time.sleep(2.0)
     return _uinput_device
 
 
