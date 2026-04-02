@@ -14,12 +14,12 @@ Part of the spiritengine ecosystem (siblings: skein, spindle, shuttle, mill, hor
 CC session (local or remote)
   └→ tine CLI (runs on target machine)
        ├→ AT-SPI2 (read UI element tree: roles, names, bounding boxes, states)
-       ├→ GNOME Shell extension (screenshots, window enumeration)
-       ├→ ydotool / uinput (keyboard + mouse injection, kernel level)
+       ├→ GNOME Shell extension (screenshots, window enumeration, focus)
+       ├→ python-evdev / uinput (keyboard + mouse injection, kernel level)
        └→ ref cache (element ID → bounding box mapping)
 ```
 
-**No portals, no consent dialogs.** Input injection goes through /dev/uinput at the kernel level. Screenshots go through our GNOME Shell extension D-Bus API. AT-SPI2 is just D-Bus queries.
+**No portals, no consent dialogs.** Input injection goes through /dev/uinput at the kernel level via python-evdev. Mouse uses EV_ABS, keyboard/typing use EV_KEY. Screenshots go through our GNOME Shell extension D-Bus API. AT-SPI2 is just D-Bus queries.
 
 ## CLI Interface
 
@@ -28,12 +28,16 @@ tine tree                      # AT-SPI2 tree with element refs
 tine tree --app Firefox        # scoped to one app
 tine screenshot                # full screen capture via extension
 tine screenshot --annotate     # screenshot with Set-of-Mark overlays
+tine screenshot --grid         # screenshot with labeled coordinate grid (A1, B3, etc.)
+tine screenshot --annotate --grid  # combine both overlays
 tine click ref_3               # click at ref_3's bounding box center
+tine click B3                  # click center of grid cell B3
 tine click 450,320             # click at pixel coordinates
-tine type "hello world"        # type text
+tine type "hello world"        # type text via evdev key events
 tine key ctrl+c                # key combo
+tine activate ref_3            # invoke AT-SPI2 action (bypasses coordinate pipeline)
 tine windows                   # list windows (title, position, size, focused)
-tine focus Firefox             # raise + focus window
+tine focus Firefox             # raise + focus window via extension D-Bus
 tine describe                  # screenshot + tree → combined context for agent
 ```
 
@@ -42,14 +46,16 @@ tine describe                  # screenshot + tree → combined context for agen
 - **CLI, not MCP.** CC calls it via Bash. Simpler, more debuggable, composable. Works from spins, shards, any session.
 - **Hybrid approach.** AT-SPI2 tree as primary, vision as fallback. Neither alone is good enough.
 - **Ref system.** Short IDs (ref_1, ref_2) assigned to AT-SPI elements. `click ref_3` resolves to bounding box center. Refs cached between calls.
-- **Lowest practical level.** ydotool/uinput for input (no portal consent dialogs). GNOME extension for screenshots (no portal permission prompts). AT-SPI2 via D-Bus (standard accessibility, no special permissions).
+- **Grid system.** When AT-SPI2 trees are sparse (shadow DOM, Chrome), `screenshot --grid` overlays a labeled coordinate grid. Agents pick cells (B3, E5) and `click B3` resolves to center.
+- **Lowest practical level.** python-evdev/uinput for input (no portal consent dialogs). GNOME extension for screenshots and focus (no portal permission prompts). AT-SPI2 via D-Bus (standard accessibility, no special permissions).
 - **Target: GNOME 49 Wayland on Arch Linux** (archgnome machine at 192.168.1.7).
 
 ## Dependencies
 
 - Python 3.11+
 - pyatspi2 / python-atspi (AT-SPI2 bindings)
-- ydotool (input injection) — or direct uinput writes
+- python-evdev (input injection via uinput — EV_ABS mouse, EV_KEY keyboard)
+- Pillow (screenshot annotation, grid overlay)
 - GNOME Shell extension (ocr-screenshot@local, already deployed on archgnome)
 - User must be in `input` group with uinput ACL
 
