@@ -134,6 +134,7 @@ def _extract_from_gvariant(text):
     )
 
     primary_scale = None
+    primary_match_end = None
     any_scale = None
 
     for m in logical_monitor_pattern.finditer(text):
@@ -143,30 +144,40 @@ def _extract_from_gvariant(text):
             any_scale = scale
         if is_primary:
             primary_scale = scale
+            primary_match_end = m.end()
             break
 
     scale = primary_scale if primary_scale is not None else any_scale
     if scale is None:
         return None
 
-    # Find monitor modes — look for resolution patterns like (1920, 1080, ...)
-    # Modes appear as ((width, height, refresh_rate, preferred_scale, ...), [...flags])
-    # We want the first/current mode of the first monitor.
-    mode_pattern = re.compile(
-        r'\((\d{3,5}),\s*(\d{3,5}),\s*[0-9.]+,'
-    )
-
+    # Extract resolution from the primary logical monitor's connector spec.
+    # The logical monitor entry contains [('connector', 'WxH@refresh')], e.g.
+    #   [('eDP-1', '1920x1080@60.052')]
+    # Parse width and height from that mode string rather than scanning all
+    # monitor modes (which would grab whichever monitor appears first).
     width = None
     height = None
-    for m in mode_pattern.finditer(text):
-        w, h = int(m.group(1)), int(m.group(2))
-        # Sanity check — actual display resolutions
-        if 640 <= w <= 7680 and 480 <= h <= 4320:
-            width, height = w, h
-            break
+    mode_string_pattern = re.compile(r"'(\d{3,5})x(\d{3,5})@[0-9.]+'")
+
+    if primary_match_end is not None:
+        # Search the text after the primary logical monitor match
+        remaining = text[primary_match_end:]
+        mode_match = mode_string_pattern.search(remaining)
+        if mode_match:
+            w, h = int(mode_match.group(1)), int(mode_match.group(2))
+            if 640 <= w <= 7680 and 480 <= h <= 4320:
+                width, height = w, h
 
     if width is None or height is None:
-        # Got scale but not resolution — use scale with default resolution
+        # Fallback: scan all mode strings in the full text
+        for m in mode_string_pattern.finditer(text):
+            w, h = int(m.group(1)), int(m.group(2))
+            if 640 <= w <= 7680 and 480 <= h <= 4320:
+                width, height = w, h
+                break
+
+    if width is None or height is None:
         return {'scale': scale, 'physical_width': 1920, 'physical_height': 1080}
 
     return {'scale': scale, 'physical_width': width, 'physical_height': height}

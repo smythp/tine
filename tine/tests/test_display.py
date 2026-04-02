@@ -175,6 +175,8 @@ class TestParseGvariant:
         config = tine.display._parse_mutter_output(text)
 
         assert config['scale'] == 1.25  # primary monitor's scale
+        assert config['physical_width'] == 1920  # primary monitor's resolution, not DP-1's 3840
+        assert config['physical_height'] == 1080
 
     def test_empty_output_returns_none(self):
         assert tine.display._parse_mutter_output('') is None
