@@ -90,6 +90,8 @@ def fake_uinput(monkeypatch):
     fake = FakeUInput()
     monkeypatch.setattr(tine.input, '_uinput_device', fake)
     monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
+    # Disable daemon so tests use direct UInput path
+    monkeypatch.setattr(tine.input, '_use_daemon', False)
     return fake
 
 
