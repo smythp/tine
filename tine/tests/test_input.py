@@ -95,11 +95,11 @@ def fake_uinput(monkeypatch):
 
 @pytest.fixture
 def default_scale(monkeypatch):
-    """Ensure default scale/physical/shadow settings for predictable math."""
-    import tine.input
-    monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
-    monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
-    monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.0)
+    """Ensure default scale/physical settings for predictable math."""
+    import tine.display
+    monkeypatch.setattr(tine.display, '_cached_config', {
+        'scale': 1.0, 'physical_width': 1920, 'physical_height': 1080,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -260,13 +260,13 @@ class TestClickRef:
 
     def test_click_ref_with_scale_window_coords(self, fake_uinput, monkeypatch):
         """Window-relative coords: window_offset + center, then scale."""
-        import tine.input
+        import tine.display
         from tine.input import click_ref
         from evdev import ecodes
 
-        monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
-        monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
-        monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.25)
+        monkeypatch.setattr(tine.display, '_cached_config', {
+            'scale': 1.25, 'physical_width': 1920, 'physical_height': 1080,
+        })
 
         cache = _make_ref_cache()
         # ref_2: bbox x=100, y=50, w=200, h=30 (coord=window by default)
@@ -283,13 +283,13 @@ class TestClickRef:
 
     def test_click_ref_screen_coords_ignores_offset(self, fake_uinput, monkeypatch):
         """Screen-space coords: offset is ignored, center used directly."""
-        import tine.input
+        import tine.display
         from tine.input import click_ref
         from evdev import ecodes
 
-        monkeypatch.setattr(tine.input, 'PHYSICAL_WIDTH', 1920)
-        monkeypatch.setattr(tine.input, 'PHYSICAL_HEIGHT', 1080)
-        monkeypatch.setattr(tine.input, 'SCALE_FACTOR', 1.25)
+        monkeypatch.setattr(tine.display, '_cached_config', {
+            'scale': 1.25, 'physical_width': 1920, 'physical_height': 1080,
+        })
 
         cache = {
             'ref_1': {
