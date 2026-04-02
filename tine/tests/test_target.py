@@ -279,6 +279,73 @@ class TestTargetCLI:
         with pytest.raises(SystemExit):
             tine.cli.main(['target', 'E5', '--pick', '0'])
 
+    def test_target_prints_subcell_coordinates(self, monkeypatch, tmp_path, capsys):
+        """tine target 400,300 prints image path, target coords, and subcell grid."""
+        import tine.screenshot
+        import tine.cli
+
+        img_path = str(tmp_path / 'shot.png')
+        _make_test_image(800, 600).save(img_path)
+
+        monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
+
+        tine.cli.main(['target', '400,300'])
+
+        out = capsys.readouterr().out
+        lines = out.strip().split('\n')
+
+        # First line is image path
+        assert lines[0] == img_path
+        # Second line is target coordinates
+        assert lines[1] == 'target: 400,300'
+        # Third line is subcells header
+        assert lines[2] == 'subcells:'
+        # Rows 7-8-9, 4-5-6, 1-2-3
+        assert '7:' in lines[3] and '8:' in lines[3] and '9:' in lines[3]
+        assert '4:' in lines[4] and '5:' in lines[4] and '6:' in lines[4]
+        assert '1:' in lines[5] and '2:' in lines[5] and '3:' in lines[5]
+
+    def test_target_grid_cell_prints_subcell_coordinates(self, monkeypatch, tmp_path, capsys):
+        """tine target E5 prints subcell coordinates for the grid cell center."""
+        import tine.screenshot
+        import tine.cli
+
+        img_path = str(tmp_path / 'shot.png')
+        _make_test_image(800, 600).save(img_path)
+
+        monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
+
+        tine.cli.main(['target', 'E5'])
+
+        out = capsys.readouterr().out
+        lines = out.strip().split('\n')
+
+        assert lines[0] == img_path
+        assert lines[1].startswith('target:')
+        assert lines[2] == 'subcells:'
+        # Verify pick 5 (center) matches the target coords
+        target_coords = lines[1].split(': ')[1]
+        assert f'5: {target_coords}' in lines[4]
+
+    def test_target_subcell_values_match(self, monkeypatch, tmp_path, capsys):
+        """Subcell coordinates in output match target_subcell_center() values."""
+        import tine.screenshot
+        import tine.cli
+
+        img_path = str(tmp_path / 'shot.png')
+        _make_test_image(800, 600).save(img_path)
+
+        monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
+
+        tine.cli.main(['target', '400,300', '--size', '90'])
+
+        out = capsys.readouterr().out
+
+        # Verify each subcell coord matches the function output
+        for pick in range(1, 10):
+            sx, sy = target_subcell_center(400, 300, pick, 90)
+            assert f'{pick}: {sx},{sy}' in out
+
     def test_target_custom_size(self, monkeypatch, tmp_path):
         """tine target E5 --size 150 uses custom region size."""
         import tine.screenshot
