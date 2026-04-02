@@ -38,7 +38,9 @@ def _socket_path():
 
 def _pid_path():
     """Return the PID file path (derived from socket path)."""
-    return _socket_path().replace('.sock', '.pid')
+    sp = _socket_path()
+    base, ext = os.path.splitext(sp)
+    return base + '.pid' if ext else sp + '.pid'
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +236,8 @@ def run_daemon(create_uinput=None, sock_path=None, timeout=None):
     """
     if sock_path is None:
         sock_path = _socket_path()
-    pid_path = sock_path.replace('.sock', '.pid')
+    base, ext = os.path.splitext(sock_path)
+    pid_path = base + '.pid' if ext else sock_path + '.pid'
 
     if timeout is None:
         timeout = int(os.environ.get('TINE_INPUTD_TIMEOUT', '300'))
@@ -250,8 +253,7 @@ def run_daemon(create_uinput=None, sock_path=None, timeout=None):
                 with open(pid_path) as f:
                     old_pid = int(f.read().strip())
                 os.kill(old_pid, 0)  # Check if process exists
-                print(f'Daemon already running (pid {old_pid})', file=sys.stderr)
-                sys.exit(1)
+                raise RuntimeError(f'Daemon already running (pid {old_pid})')
             except (OSError, ValueError):
                 pass  # Stale PID, clean up
         os.unlink(sock_path)
@@ -269,6 +271,7 @@ def run_daemon(create_uinput=None, sock_path=None, timeout=None):
     # Write PID file
     with open(pid_path, 'w') as f:
         f.write(str(os.getpid()))
+    os.chmod(pid_path, 0o600)
 
     # Register cleanup
     def cleanup_handler():
@@ -410,7 +413,8 @@ def start_daemon(sock_path=None):
 
     # Clean up stale socket if present
     sp = sock_path or _socket_path()
-    pp = sp.replace('.sock', '.pid')
+    base, ext = os.path.splitext(sp)
+    pp = base + '.pid' if ext else sp + '.pid'
     if os.path.exists(sp):
         if os.path.exists(pp):
             try:
@@ -466,7 +470,11 @@ def _main():
     parser.add_argument('--timeout', type=int, default=None,
                         help='Inactivity timeout in seconds')
     args = parser.parse_args()
-    run_daemon(sock_path=args.sock, timeout=args.timeout)
+    try:
+        run_daemon(sock_path=args.sock, timeout=args.timeout)
+    except RuntimeError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

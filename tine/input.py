@@ -145,6 +145,7 @@ def _try_daemon(cmd):
     Returns the response dict if successful, None if daemon unavailable.
     Attempts auto-start on first failure.
     """
+    global _use_daemon
     if not _use_daemon:
         return None
     from tine.inputd import send_command, start_daemon
@@ -161,6 +162,8 @@ def _try_daemon(cmd):
                 return send_command(cmd)
             except (ConnectionError, OSError):
                 pass
+        # Daemon failed to start — stop retrying for this process
+        _use_daemon = False
         return None
 
 
