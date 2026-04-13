@@ -365,7 +365,7 @@ class TestScreenshotCommand:
         cli_mod.main(['screenshot', '--grid'])
 
         assert len(grid_calls) == 1
-        assert grid_calls[0]['grid_size'] == 100
+        assert grid_calls[0]['grid_size'] == 450
 
     def test_screenshot_grid_custom_size(self, monkeypatch, capsys, tmp_path):
         """--grid --grid-size 200 passes custom size to grid_overlay."""
@@ -644,10 +644,10 @@ class TestClickCommand:
         cli_mod.main(['click', 'B3'])
 
         assert len(click_calls) == 1
-        # B=col 1, 3=row 2 (zero-based). Default grid_size=100.
-        # Center: (1*100+50, 2*100+50) = (150, 250)
-        assert click_calls[0]['x'] == 150
-        assert click_calls[0]['y'] == 250
+        # B=col 1, 3=row 2 (zero-based). Default grid_size=450.
+        # Center: (1*450+225, 2*450+225) = (675, 1125)
+        assert click_calls[0]['x'] == 675
+        assert click_calls[0]['y'] == 1125
         assert click_calls[0]['button'] == 'left'
 
     def test_click_grid_cell_custom_size(self, monkeypatch, tmp_path):
@@ -679,8 +679,8 @@ class TestClickCommand:
         import tine.cli as cli_mod
         cli_mod.main(['click', 'b3'])
 
-        assert click_calls[0]['x'] == 150
-        assert click_calls[0]['y'] == 250
+        assert click_calls[0]['x'] == 675
+        assert click_calls[0]['y'] == 1125
 
     def test_click_grid_cell_right_button(self, monkeypatch, tmp_path):
         """tine click --button right A1 passes button through."""

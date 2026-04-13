@@ -538,8 +538,8 @@ def main(argv=None):
                            help='Add Set-of-Mark overlays')
     ss_parser.add_argument('--grid', action='store_true',
                            help='Add labeled coordinate grid overlay')
-    ss_parser.add_argument('--grid-size', type=int, default=100,
-                           help='Grid spacing in physical pixels (default 100)')
+    ss_parser.add_argument('--grid-size', type=int, default=450,
+                           help='Grid spacing in physical pixels (default 450)')
     ss_parser.add_argument('--scale', type=float, default=_default_scale,
                            help='Display scale factor')
     ss_parser.add_argument('--output', '-o', default=None,
@@ -553,8 +553,8 @@ def main(argv=None):
                               help='Mouse button: left, right, middle')
     click_parser.add_argument('--double', action='store_true',
                               help='Double click')
-    click_parser.add_argument('--grid-size', type=int, default=100,
-                              help='Grid spacing in physical pixels (default 100)')
+    click_parser.add_argument('--grid-size', type=int, default=450,
+                              help='Grid spacing in physical pixels (default 450)')
 
     # target
     target_parser = subparsers.add_parser('target',
@@ -566,8 +566,8 @@ def main(argv=None):
                                help='After clicking, show new 3x3 at clicked position')
     target_parser.add_argument('--size', type=int, default=None,
                                help='Region size in pixels (default: grid-size)')
-    target_parser.add_argument('--grid-size', type=int, default=100,
-                               help='Grid spacing in physical pixels (default 100)')
+    target_parser.add_argument('--grid-size', type=int, default=450,
+                               help='Grid spacing in physical pixels (default 450)')
     target_parser.add_argument('--output', '-o', default=None,
                                help='Output path for screenshot PNG')
 
