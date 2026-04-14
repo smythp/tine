@@ -1088,8 +1088,7 @@ class TestDescribeCommand:
 
         describe_calls = []
 
-        def fake_describe(app=None, annotate=False, scale=1.0, ocr=False,
-                          window_offset=(0, 0)):
+        def fake_describe(app=None, annotate=False, scale=1.0, ocr=False):
             describe_calls.append({'annotate': annotate, 'scale': scale})
             return {
                 'tree': '', 'screenshot': '/tmp/x.png',
