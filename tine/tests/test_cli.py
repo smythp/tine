@@ -1088,11 +1088,12 @@ class TestDescribeCommand:
 
         describe_calls = []
 
-        def fake_describe(app=None, annotate=False, scale=1.0):
+        def fake_describe(app=None, annotate=False, scale=1.0, ocr=False,
+                          window_offset=(0, 0)):
             describe_calls.append({'annotate': annotate, 'scale': scale})
             return {
                 'tree': '', 'screenshot': '/tmp/x.png',
-                'windows': [], 'ref_cache': {},
+                'windows': [], 'ref_cache': {}, 'app_name': '',
             }
 
         import tine.describe
@@ -1105,12 +1106,12 @@ class TestDescribeCommand:
         assert describe_calls[0]['scale'] == 1.25
 
     def test_describe_saves_ref_cache_with_app(self, monkeypatch, capsys, tmp_path):
-        """describe saves ref_cache and injects _app from the tree root."""
+        """describe saves ref_cache and injects _app from the describe() result."""
         ref_cache_path = str(tmp_path / 'refs.json')
         monkeypatch.setenv('TINE_REF_CACHE', ref_cache_path)
 
-        # describe() returns ref_cache without _app — CLI must inject it
-        # from the tree content (root application name)
+        # describe() returns app_name alongside ref_cache — CLI copies it
+        # into the saved cache under the _app key.
         raw_ref_cache = {
             'ref_1': {
                 'role': 'button', 'name': 'Wi-Fi',
@@ -1122,6 +1123,7 @@ class TestDescribeCommand:
             'screenshot': '/tmp/tine-describe-abc.png',
             'windows': _make_windows(),
             'ref_cache': raw_ref_cache,
+            'app_name': 'Settings',
         }
 
         import tine.describe

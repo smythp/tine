@@ -8,20 +8,23 @@ import tine.cli as cli
 BUG_MARKER = "cli_audit_regression"
 
 
-# BUG: _cmd_describe parses app name from tree text with a regex that expects
-# single quotes, but the formatted tree output uses double quotes.
-# This causes ref_cache['_app'] to be empty even when the application name is present.
-# LINE: tine/cli.py:285-288
-# WHY: re.match(r"application\s+'([^']*)'", tree_text) fails when tree contains
-#      application \"Name\" (double quotes), dropping metadata used to resolve offsets.
+# Originally this regression test covered a regex bug that parsed app names
+# from format_tree output with single quotes but failed on double quotes.
+# That regex is gone: describe() now returns app_name directly from the
+# walker. The same invariant — CLI must persist _app in the saved cache —
+# rides on the structured field instead of a text parse.
 
-def test_cmd_describe_extracts_app_name_from_tree_text_double_quotes(monkeypatch):
+def test_cmd_describe_persists_app_name_in_cache(monkeypatch):
     saved = {}
 
-    def fake_describe(app=None, annotate=False, scale=1.0):
+    def fake_describe(app=None, annotate=False, scale=1.0, ocr=False,
+                      window_offset=(0, 0)):
         return {
             "tree": 'application "Calculator"\n  button "1"',
             "ref_cache": {"ref_1": {"bbox": {"x": 1, "y": 2, "w": 3, "h": 4}}},
+            "app_name": "Calculator",
+            "windows": [],
+            "screenshot": "/tmp/x.png",
         }
 
     def fake_format_for_agent(result):
@@ -36,7 +39,7 @@ def test_cmd_describe_extracts_app_name_from_tree_text_double_quotes(monkeypatch
     monkeypatch.setattr(cli.tine.refs, "save_ref_cache", fake_save_ref_cache)
     monkeypatch.setattr(cli, "_ref_cache_path", lambda: "/tmp/tine-refs.json")
 
-    args = types.SimpleNamespace(app=None, annotate=False, scale=1.0)
+    args = types.SimpleNamespace(app=None, annotate=False, scale=1.0, ocr=False)
     cli._cmd_describe(args)
 
     assert saved["ref_cache"]["_app"] == "Calculator"

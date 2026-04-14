@@ -1,14 +1,40 @@
 """Ref cache utilities for tine.
 
-Refs are short IDs (ref_1, ref_2, ...) assigned to interactive AT-SPI2
-elements. The ref cache maps ref IDs to {role, name, bbox} for lookup.
+Refs are short IDs assigned to targetable things on screen, cached so agents
+can call back to them by id instead of bbox coordinates.
+
+Two namespaces share one cache file:
+
+    ref_1, ref_2, ...   AT-SPI2 interactive elements  (entry has 'role')
+    ref_t1, ref_t2, ... OCR-detected text regions     (entry has 'text')
+
+Both entry shapes have a 'bbox'. OCR entries always carry ``coord: 'screen'``
+so click_ref skips the window-offset step. The two namespaces are kept
+distinct so agents don't conflate a button ref with a text ref; each has
+its own counter.
 """
 
 import json
 import os
+import re
 import tempfile
 
 INT_MIN = -2147483648
+
+# Combined pattern matches both ref_N (AT-SPI2) and ref_tN (OCR text).
+# Kept here so cli.py and any other caller share one definition.
+REF_ID_PATTERN = re.compile(r'^ref_t?\d+$')
+TEXT_REF_PATTERN = re.compile(r'^ref_t\d+$')
+
+
+def is_ref_id(s):
+    """Return True if ``s`` matches either ref namespace."""
+    return isinstance(s, str) and bool(REF_ID_PATTERN.match(s))
+
+
+def is_text_ref(s):
+    """Return True if ``s`` is an OCR text ref (``ref_tN``)."""
+    return isinstance(s, str) and bool(TEXT_REF_PATTERN.match(s))
 
 
 def bbox_center(bbox):

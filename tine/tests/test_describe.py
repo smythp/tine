@@ -105,7 +105,7 @@ def _fake_windows():
 # ---------------------------------------------------------------------------
 
 class TestGetTree:
-    """tine.describe._get_tree(app) -> (tree_text, ref_cache) via AT-SPI2 pipeline."""
+    """tine.describe._get_tree(app) -> (tree_text, ref_cache, app_name) via AT-SPI2 pipeline."""
 
     def _raw_tree(self):
         return {
@@ -127,7 +127,7 @@ class TestGetTree:
         }
 
     def test_get_tree_returns_tuple(self, monkeypatch):
-        """_get_tree returns (tree_text, ref_cache) tuple."""
+        """_get_tree returns (tree_text, ref_cache, app_name) tuple."""
         import tine.describe as desc
 
         monkeypatch.setattr(desc, 'walk_atspi', lambda app=None: self._raw_tree())
@@ -135,7 +135,7 @@ class TestGetTree:
         result = desc._get_tree()
 
         assert isinstance(result, tuple)
-        assert len(result) == 2
+        assert len(result) == 3
 
     def test_get_tree_tree_text_is_string(self, monkeypatch):
         """_get_tree first element is formatted tree text."""
@@ -143,7 +143,7 @@ class TestGetTree:
 
         monkeypatch.setattr(desc, 'walk_atspi', lambda app=None: self._raw_tree())
 
-        tree_text, _ = desc._get_tree()
+        tree_text, _, _ = desc._get_tree()
 
         assert isinstance(tree_text, str)
         assert 'Settings' in tree_text
@@ -154,7 +154,7 @@ class TestGetTree:
 
         monkeypatch.setattr(desc, 'walk_atspi', lambda app=None: self._raw_tree())
 
-        _, ref_cache = desc._get_tree()
+        _, ref_cache, _ = desc._get_tree()
 
         assert isinstance(ref_cache, dict)
 
@@ -164,7 +164,7 @@ class TestGetTree:
 
         monkeypatch.setattr(desc, 'walk_atspi', lambda app=None: self._raw_tree())
 
-        _, ref_cache = desc._get_tree()
+        _, ref_cache, _ = desc._get_tree()
 
         # Wi-Fi button should be assigned a ref
         refs = [v for v in ref_cache.values() if isinstance(v, dict) and v.get('name') == 'Wi-Fi']
@@ -204,7 +204,7 @@ class TestGetTree:
 
         monkeypatch.setattr(desc, 'walk_atspi', lambda app=None: self._raw_tree())
 
-        tree_text, _ = desc._get_tree()
+        tree_text, _, _ = desc._get_tree()
 
         assert 'ref_' in tree_text
 
@@ -221,7 +221,7 @@ class TestDescribe:
         # Mock the dependencies
         import tine.describe as desc
 
-        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache()))
+        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache(), 'Settings'))
         monkeypatch.setattr(desc, '_get_windows', lambda: _fake_windows())
         monkeypatch.setattr(desc, '_capture_screenshot', lambda path, **kw: _make_screenshot(path))
 
@@ -235,7 +235,7 @@ class TestDescribe:
         """describe() includes path to screenshot file."""
         import tine.describe as desc
 
-        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache()))
+        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache(), 'Settings'))
         monkeypatch.setattr(desc, '_get_windows', lambda: _fake_windows())
         monkeypatch.setattr(desc, '_capture_screenshot', lambda path, **kw: _make_screenshot(path))
 
@@ -248,7 +248,7 @@ class TestDescribe:
         """describe() includes window list."""
         import tine.describe as desc
 
-        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache()))
+        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache(), 'Settings'))
         monkeypatch.setattr(desc, '_get_windows', lambda: _fake_windows())
         monkeypatch.setattr(desc, '_capture_screenshot', lambda path, **kw: _make_screenshot(path))
 
@@ -263,7 +263,7 @@ class TestDescribe:
         """describe() includes the ref cache for downstream use."""
         import tine.describe as desc
 
-        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache()))
+        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache(), 'Settings'))
         monkeypatch.setattr(desc, '_get_windows', lambda: _fake_windows())
         monkeypatch.setattr(desc, '_capture_screenshot', lambda path, **kw: _make_screenshot(path))
 
@@ -279,7 +279,7 @@ class TestDescribe:
         captured_app = []
         def fake_tree(app=None):
             captured_app.append(app)
-            return (_fake_tree_output(), _fake_ref_cache())
+            return (_fake_tree_output(), _fake_ref_cache(), 'Settings')
 
         monkeypatch.setattr(desc, '_get_tree', fake_tree)
         monkeypatch.setattr(desc, '_get_windows', lambda: _fake_windows())
@@ -298,7 +298,7 @@ class TestDescribe:
             capture_kwargs.append(kw)
             return _make_screenshot(path)
 
-        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache()))
+        monkeypatch.setattr(desc, '_get_tree', lambda app=None: (_fake_tree_output(), _fake_ref_cache(), 'Settings'))
         monkeypatch.setattr(desc, '_get_windows', lambda: _fake_windows())
         monkeypatch.setattr(desc, '_capture_screenshot', fake_capture)
 
@@ -313,7 +313,7 @@ class TestDescribe:
         """describe() works when no windows are open."""
         import tine.describe as desc
 
-        monkeypatch.setattr(desc, '_get_tree', lambda app=None: ('', {}))
+        monkeypatch.setattr(desc, '_get_tree', lambda app=None: ('', {}, ''))
         monkeypatch.setattr(desc, '_get_windows', lambda: [])
         monkeypatch.setattr(desc, '_capture_screenshot', lambda path, **kw: _make_screenshot(path))
 

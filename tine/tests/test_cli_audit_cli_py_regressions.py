@@ -1,27 +1,28 @@
 import argparse
-import os
-import re
 import pytest
 
 import tine.cli as cli
 
 
-BUG_APP_RE = re.compile(r"""application\s+['\"]([^'\"]*)['\"]""")
+def test_cmd_describe_copies_app_name_from_describe_result(monkeypatch, tmp_path):
+    """_cmd_describe should copy app_name from describe()'s result into _app.
 
-
-def test_cmd_describe_extracts_app_name_even_with_leading_newline(monkeypatch, tmp_path):
-    """BUG: _cmd_describe uses re.match, so it fails if tree starts with a newline.
-
-    Expected behavior: app name extraction should work on typical multi-line trees
-    even if there is a leading newline/whitespace before the first line.
+    Originally this regression test covered a re.match bug that failed on
+    trees with a leading newline. That regex parse has been removed:
+    describe() now returns app_name directly from the walker. The invariant
+    is the same — _app must land in the saved ref cache — but it rides on a
+    structured field instead of a text parse.
     """
     cache_path = tmp_path / "refs.json"
     monkeypatch.setenv("TINE_REF_CACHE", str(cache_path))
 
-    def fake_describe(app, annotate, scale):
+    def fake_describe(app, annotate, scale, ocr=False, window_offset=(0, 0)):
         return {
             "tree": "\napplication 'MyApp'\n  window 'x'",
             "ref_cache": {"ref_1": {"bbox": {"x": 1, "y": 2, "w": 3, "h": 4}}},
+            "app_name": "MyApp",
+            "windows": [],
+            "screenshot": "/tmp/x.png",
         }
 
     monkeypatch.setattr(cli.tine.describe, "describe", fake_describe)
@@ -35,10 +36,9 @@ def test_cmd_describe_extracts_app_name_even_with_leading_newline(monkeypatch, t
 
     monkeypatch.setattr(cli.tine.refs, "save_ref_cache", fake_save_ref_cache)
 
-    args = argparse.Namespace(app=None, annotate=False, scale=1.0)
+    args = argparse.Namespace(app=None, annotate=False, scale=1.0, ocr=False)
     cli._cmd_describe(args)
 
-    # Fails today: app_name becomes '' because re.match doesn't match after leading newline.
     assert saved["cache"]["_app"] == "MyApp"
 
 
