@@ -55,6 +55,12 @@ dependencies = [
 # install-instructions message if it is missing.
 
 [project.optional-dependencies]
+ocr = [
+    # OCR text refs (tine screenshot --ocr, tine describe --ocr).
+    # Lazy-imported by tine.ocr so tine runs fine without them.
+    "rapidocr>=1.3",
+    "onnxruntime>=1.17",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",

@@ -27,7 +27,7 @@ It reads the screen three ways:
 
 - **AT-SPI2 accessibility tree.** When an app exposes its widgets to the Linux a11y stack (GTK apps, Qt apps, most native GNOME stuff), tine walks the tree and gives the agent structured data — roles, names, bounding boxes, actions. The agent can say `click ref_17` and tine clicks the center of the button with that ref.
 - **Labeled coordinate grid.** When AT-SPI2 is sparse or missing (Chrome, Electron, most web content, games), tine overlays a labeled grid on the screenshot and the agent says `click B3`. Not fancy, but it works.
-- **OCR text refs** (in development — another contributor is building this). Click by on-screen text, without needing the agent to pick a coordinate.
+- **OCR text refs.** Run OCR on the screenshot (RapidOCR, local, CPU) and get refs like `ref_t3` tied to detected text regions. The agent can click by on-screen text — `tine click ref_t3` clicks the center of the OCR region with that ref. Optional, lazy-loaded, install with `pip install tine-cli[ocr]`.
 
 And it injects input at the kernel level through `/dev/uinput`, so no Wayland portal ever prompts for consent and no headless agent loop gets interrupted by a dialog.
 
@@ -59,6 +59,8 @@ Create a venv that inherits system site-packages (so the distro's `python3-gi` i
 ```bash
 python3 -m venv --system-site-packages ~/.local/share/tine-venv
 ~/.local/share/tine-venv/bin/pip install tine-cli
+# with OCR text refs (adds RapidOCR + onnxruntime, ~200 MB):
+# ~/.local/share/tine-venv/bin/pip install "tine-cli[ocr]"
 mkdir -p ~/.local/bin
 ln -sf ~/.local/share/tine-venv/bin/tine ~/.local/bin/tine
 # ensure ~/.local/bin is on your PATH
@@ -117,7 +119,10 @@ If all five commands run clean, you're done — hand the CLI to an agent and let
 | `tine screenshot`    | Full-screen capture via the GNOME Shell extension.                |
 | `tine screenshot --annotate` | Overlay Set-of-Mark boxes on known a11y elements.         |
 | `tine screenshot --grid`     | Overlay a labeled coordinate grid for sparse-tree apps.   |
-| `tine click ref_3`   | Click the center of a cached ref's bounding box.                  |
+| `tine screenshot --ocr`      | Run OCR, add `ref_tN` entries for detected text regions.  |
+| `tine describe --ocr`        | `describe` plus OCR text refs (needs `[ocr]` extra).      |
+| `tine click ref_3`   | Click the center of a cached a11y ref's bounding box.             |
+| `tine click ref_t3`  | Click the center of an OCR text ref.                              |
 | `tine click B3`      | Click the center of grid cell B3.                                 |
 | `tine click 450,320` | Click raw pixel coordinates.                                      |
 | `tine target ref_3`  | 3x3 sub-grid crosshair for refinement when `click` misses.        |
