@@ -59,12 +59,21 @@ Create a venv that inherits system site-packages (so the distro's `python3-gi` i
 ```bash
 python3 -m venv --system-site-packages ~/.local/share/tine-venv
 ~/.local/share/tine-venv/bin/pip install tine-cli
-# with OCR text refs (adds RapidOCR + onnxruntime, ~200 MB):
-# ~/.local/share/tine-venv/bin/pip install "tine-cli[ocr]"
 mkdir -p ~/.local/bin
 ln -sf ~/.local/share/tine-venv/bin/tine ~/.local/bin/tine
 # ensure ~/.local/bin is on your PATH
 ```
+
+**Optional: OCR text refs.** If you want `tine click ref_tN` (click by on-screen text), install the `[ocr]` extra. It pulls in RapidOCR and ONNX Runtime (~200 MB), plus a couple of system libs OpenCV needs:
+
+```bash
+# Debian/Ubuntu: OpenCV needs libGL and glib at runtime
+sudo apt install libgl1 libglib2.0-0
+
+~/.local/share/tine-venv/bin/pip install "tine-cli[ocr]"
+```
+
+OCR is lazy-imported, so base tine works fine without it and only `tine screenshot --ocr` / `tine describe --ocr` / `tine click ref_tN` need the extra.
 
 The PyPI package is `tine-cli` (the name `tine` was already taken); the installed command is `tine`.
 
