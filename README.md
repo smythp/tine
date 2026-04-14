@@ -15,19 +15,21 @@ $ tine key ctrl+t             # modifier combos
 $ tine focus Firefox          # raise + focus a window
 ```
 
-> **Status:** alpha. Tested on GNOME 49 Wayland / Arch Linux. 475 tests passing. API may change before 1.0.
+> **Status:** alpha. Tested on GNOME 49 Wayland / Arch Linux. API may change before 1.0.
 
 ---
 
-## Why this exists
+## Why
 
-Existing computer-use tools on Linux are stuck in one of three corners:
+Anthropic's computer-use feature works on Windows and macOS. If you use Linux — and especially if you use Wayland, which is more locked-down than X11 and breaks most of the existing Linux automation stack — you're mostly out of luck. Tine is an attempt at a usable Wayland alternative.
 
-- **Pure vision (pyautogui, Anthropic computer use)** — slow, coordinate-fragile, no structure. Every click is a screenshot and a guess.
-- **Pure accessibility (AT-SPI2 scripts)** — structured but sparse. Chrome, Electron, anything with a shadow DOM is a black box.
-- **Portal-based automation (RemoteDesktop/ScreenCast portals)** — throws a consent dialog on every session, breaking headless agent flows.
+It reads the screen three ways:
 
-Tine is the hybrid. AT-SPI2 when the app exposes it, labeled-grid vision when it doesn't, kernel-level `uinput` for input so portals never enter the picture.
+- **AT-SPI2 accessibility tree.** When an app exposes its widgets to the Linux a11y stack (GTK apps, Qt apps, most native GNOME stuff), tine walks the tree and gives the agent structured data — roles, names, bounding boxes, actions. The agent can say `click ref_17` and tine clicks the center of the button with that ref.
+- **Labeled coordinate grid.** When AT-SPI2 is sparse or missing (Chrome, Electron, most web content, games), tine overlays a labeled grid on the screenshot and the agent says `click B3`. Not fancy, but it works.
+- **OCR text refs** (in development — another contributor is building this). Click by on-screen text, without needing the agent to pick a coordinate.
+
+And it injects input at the kernel level through `/dev/uinput`, so no Wayland portal ever prompts for consent and no headless agent loop gets interrupted by a dialog.
 
 ---
 
@@ -37,24 +39,36 @@ Tine targets **GNOME Shell on Wayland, Linux only**. Other environments are out 
 
 ### 1. System prerequisites
 
+Tine uses PyGObject (`gi.repository.Atspi`) to read the accessibility tree. PyGObject is best installed via your distro's package manager — installing it from pip requires building `pycairo` and `PyGObject` from source and pulling in `libcairo2-dev`, `libgirepository-dev`, `pkg-config`, `cmake`, and a C compiler. Don't do that. Install these instead:
+
 ```bash
 # Arch / Manjaro
-sudo pacman -S python python-gobject gobject-introspection at-spi2-core
+sudo pacman -S python python-gobject at-spi2-core python-pip python-virtualenv
 
 # Fedora
-sudo dnf install python3 python3-gobject gobject-introspection at-spi2-core
+sudo dnf install python3 python3-gobject at-spi2-core python3-pip python3-virtualenv
 
 # Debian / Ubuntu
-sudo apt install python3 python3-gi gir1.2-atspi-2.0 at-spi2-core
+sudo apt install python3 python3-gi gir1.2-atspi-2.0 at-spi2-core python3-pip python3-venv
 ```
 
 ### 2. Install tine
 
+Create a venv that inherits system site-packages (so the distro's `python3-gi` is importable) and install `tine-cli` into it:
+
 ```bash
-pip install tine-cli
+python3 -m venv --system-site-packages ~/.local/share/tine-venv
+~/.local/share/tine-venv/bin/pip install tine-cli
+mkdir -p ~/.local/bin
+ln -sf ~/.local/share/tine-venv/bin/tine ~/.local/bin/tine
+# ensure ~/.local/bin is on your PATH
 ```
 
-The PyPI package is `tine-cli`; the installed command is `tine`.
+The PyPI package is `tine-cli` (the name `tine` was already taken); the installed command is `tine`.
+
+**Why the `--system-site-packages` venv:** modern Debian, Ubuntu, and Fedora set [PEP 668](https://peps.python.org/pep-0668/) "externally-managed-environment" on the system Python, so `pip install tine-cli` fails there. A venv is the correct answer, and `--system-site-packages` makes it inherit the system `python3-gi` so tine doesn't have to rebuild PyGObject from source.
+
+**Arch / Manjaro users** can also do `pip install --user tine-cli` directly if they prefer — Arch doesn't enforce PEP 668.
 
 ### 3. Give your user uinput access (one-time)
 
@@ -77,8 +91,6 @@ cp -r extension/ocr-screenshot@local ~/.local/share/gnome-shell/extensions/
 # log out / back in (Wayland can't hot-reload extensions), then:
 gnome-extensions enable ocr-screenshot@local
 ```
-
-(Yes, the extension is named `ocr-screenshot` for historical reasons — see [extension/README.md](extension/README.md). It does screenshots, window listing, and window focus. No OCR happens inside the extension. A rename is planned.)
 
 ### 5. Try it
 
@@ -150,7 +162,7 @@ If all five commands run clean, you're done — hand the CLI to an agent and let
 
 ---
 
-## The killer example: log into Reddit from a Claude Code session
+## Example: log into Reddit from a Claude Code session
 
 ```bash
 tine focus Firefox
@@ -193,7 +205,6 @@ Tine is the only one that combines structured reads with portal-free input on Wa
 - **Linux only.** No macOS or Windows plans.
 - **Requires uinput access.** One-time udev setup. No way around this without portals.
 - **AT-SPI2 is sparse in some apps.** Chrome, some Electron apps, most games. Use `tine screenshot --grid` as the fallback.
-- **OCR text refs not yet shipped.** Coming in 0.2 — tracked in a separate brief.
 
 ---
 
@@ -208,7 +219,7 @@ pytest
 
 Most tests run without a display — the input and screenshot layers are mocked. The AT-SPI2 walker tests use fixtures from `research/fixtures/`.
 
-Issues and PRs welcome. Keep changes focused; tine is deliberately small.
+Issues and PRs welcome.
 
 ---
 

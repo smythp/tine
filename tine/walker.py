@@ -23,7 +23,16 @@ def walk_atspi(app=None):
     except subprocess.TimeoutExpired:
         raise RuntimeError('AT-SPI2 walker timed out after 30s')
     if result.returncode != 0:
-        raise RuntimeError(f'AT-SPI2 walker failed: {result.stderr.strip()}')
+        stderr = result.stderr.strip()
+        if 'No module named' in stderr and 'gi' in stderr:
+            raise RuntimeError(
+                "AT-SPI2 walker failed: PyGObject (python-gi) is not installed. "
+                "Install it via your distro package manager, not pip: "
+                "'sudo apt install python3-gi gir1.2-atspi-2.0' (Debian/Ubuntu), "
+                "'sudo pacman -S python-gobject at-spi2-core' (Arch), or "
+                "'sudo dnf install python3-gobject at-spi2-core' (Fedora)."
+            )
+        raise RuntimeError(f'AT-SPI2 walker failed: {stderr}')
     _ATSPI_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
     if len(result.stdout) > _ATSPI_MAX_BYTES:
         raise RuntimeError(

@@ -40,8 +40,19 @@ classifiers = [
 dependencies = [
     "evdev>=1.6",
     "Pillow>=10.0",
-    "PyGObject>=3.42",
 ]
+# PyGObject (gi.repository.Atspi) is deliberately NOT a pip dependency.
+# Installing it from pip forces a source build of pycairo and PyGObject,
+# which needs libcairo2-dev, libgirepository-2.0-dev, pkg-config, cmake,
+# gcc, etc. — a fragile install that breaks on every clean system. The
+# correct source for PyGObject is your distro package manager:
+#   Debian/Ubuntu: sudo apt install python3-gi gir1.2-atspi-2.0
+#   Arch:          sudo pacman -S python-gobject at-spi2-core
+#   Fedora:        sudo dnf install python3-gobject at-spi2-core
+# Tine only imports gi inside a subprocess (tine.atspi_walker), so the
+# CLI and every other command work without it. Only `tine tree` and
+# `tine describe` need it at runtime, and they fail with a clear
+# install-instructions message if it is missing.
 
 [project.optional-dependencies]
 dev = [

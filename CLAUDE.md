@@ -66,7 +66,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-475 tests pass on master. Input and screenshot layers are mocked so most tests run without a display. AT-SPI2 walker tests use fixtures in `research/fixtures/`.
+Input and screenshot layers are mocked so most tests run without a display. AT-SPI2 walker tests use fixtures in `research/fixtures/`.
 
 ## Principles
 
