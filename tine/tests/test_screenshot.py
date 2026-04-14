@@ -4,7 +4,7 @@ Capture uses the GNOME Shell extension D-Bus API (org.gnome.OCRScreenshot.Full).
 Annotation draws numbered ref labels on bounding boxes using PIL.
 
 These tests mock subprocess/D-Bus calls for unit testing. Integration tests
-on archgnome are separate.
+on a live system are separate.
 """
 
 import json

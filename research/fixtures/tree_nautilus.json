@@ -2459,7 +2459,7 @@
                                                         },
                                                         {
                                                           "role": "list item",
-                                                          "name": "/home/patrick/Documents",
+                                                          "name": "/home/user/Documents",
                                                           "bbox": {
                                                             "x": 0,
                                                             "y": 0,
@@ -2564,7 +2564,7 @@
                                                         },
                                                         {
                                                           "role": "list item",
-                                                          "name": "/home/patrick/Music",
+                                                          "name": "/home/user/Music",
                                                           "bbox": {
                                                             "x": 0,
                                                             "y": 0,
@@ -2669,7 +2669,7 @@
                                                         },
                                                         {
                                                           "role": "list item",
-                                                          "name": "/home/patrick/Pictures",
+                                                          "name": "/home/user/Pictures",
                                                           "bbox": {
                                                             "x": 0,
                                                             "y": 0,
@@ -2774,7 +2774,7 @@
                                                         },
                                                         {
                                                           "role": "list item",
-                                                          "name": "/home/patrick/Videos",
+                                                          "name": "/home/user/Videos",
                                                           "bbox": {
                                                             "x": 0,
                                                             "y": 0,
@@ -2879,7 +2879,7 @@
                                                         },
                                                         {
                                                           "role": "list item",
-                                                          "name": "/home/patrick/Downloads",
+                                                          "name": "/home/user/Downloads",
                                                           "bbox": {
                                                             "x": 0,
                                                             "y": 0,

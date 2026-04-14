@@ -564,7 +564,7 @@ application "gnome-shell"
                     button [831,470 369x265] {enabled,focusable,sensitive,showing,visible}
                       panel [831,470 368x265] {focusable,showing,visible}
                         image [818,458 394x292] {focusable,showing,visible}
-                      label "patrick@archgnome:~" [-2147483648,-2147483648 -2147483648x-2147483648] {enabled,focusable,sensitive}
+                      label "user@desktop:~" [-2147483648,-2147483648 -2147483648x-2147483648] {enabled,focusable,sensitive}
                         text [-2147483648,-2147483648 -2147483648x-2147483648] {focusable,visible} actions=[activate]
                       panel [983,690 64x65] {enabled,focusable,sensitive,showing,visible}
                         panel [983,690 64x64] {focusable,showing,visible}

@@ -1,7 +1,7 @@
 """Tests for tine tree walker: collapsing, ref assignment, formatting.
 
 These tests define the contract for RSP A. They use real AT-SPI2 tree
-dumps from archgnome as fixtures, so they test against actual GTK4/libadwaita,
+dumps from a live GNOME system as fixtures, so they test against actual GTK4/libadwaita,
 VTE/GTK3, and gnome-shell tree structures.
 
 The processing pipeline is:
@@ -519,7 +519,7 @@ class TestRefAssignment:
         # AT-SPI2 space-separated role names.
         # All of these MUST get refs — the list is intentionally broad.
         interactive_roles = [
-            # Confirmed in archgnome fixtures
+            # Confirmed in a live GNOME system fixtures
             'button', 'toggle button', 'check box', 'check menu item',
             'menu item', 'text', 'terminal', 'table cell', 'list item',
             'menu',

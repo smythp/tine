@@ -119,27 +119,27 @@ application "org.gnome.Nautilus"
                                 panel [0,0 140x36] {horizontal,sensitive,showing,visible}
                                   image "Trash" [0,0 24x36] {sensitive,showing,visible}
                                   label "Trash" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
-                            list item "/home/patrick/Documents" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                            list item "/home/user/Documents" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
                               grouping [0,0 168x36] {sensitive,showing,visible}
                                 panel [0,0 140x36] {horizontal,sensitive,showing,visible}
                                   image "Documents" [0,0 24x36] {sensitive,showing,visible}
                                   label "Documents" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
-                            list item "/home/patrick/Music" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                            list item "/home/user/Music" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
                               grouping [0,0 168x36] {sensitive,showing,visible}
                                 panel [0,0 140x36] {horizontal,sensitive,showing,visible}
                                   image "Music" [0,0 24x36] {sensitive,showing,visible}
                                   label "Music" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
-                            list item "/home/patrick/Pictures" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                            list item "/home/user/Pictures" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
                               grouping [0,0 168x36] {sensitive,showing,visible}
                                 panel [0,0 140x36] {horizontal,sensitive,showing,visible}
                                   image "Pictures" [0,0 24x36] {sensitive,showing,visible}
                                   label "Pictures" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
-                            list item "/home/patrick/Videos" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                            list item "/home/user/Videos" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
                               grouping [0,0 168x36] {sensitive,showing,visible}
                                 panel [0,0 140x36] {horizontal,sensitive,showing,visible}
                                   image "Videos" [0,0 24x36] {sensitive,showing,visible}
                                   label "Videos" [0,0 116x36] {sensitive,showing,visible} actions=[clipboard.copy,selection.delete,clipboard.paste,link.open,clipboard.cut,link.copy,menu.popup,selection.select-all]
-                            list item "/home/patrick/Downloads" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
+                            list item "/home/user/Downloads" [0,0 168x36] {focusable,selectable,sensitive,showing,visible}
                               grouping [0,0 168x36] {sensitive,showing,visible}
                                 panel [0,0 140x36] {horizontal,sensitive,showing,visible}
                                   image "Downloads" [0,0 24x36] {sensitive,showing,visible}

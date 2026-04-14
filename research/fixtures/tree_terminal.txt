@@ -1,5 +1,5 @@
 application "org.gnome.Terminal"
-  frame "patrick@archgnome:~" [0,0 788x581] {enabled,resizable,sensitive,showing,visible}
+  frame "user@desktop:~" [0,0 788x581] {enabled,resizable,sensitive,showing,visible}
     panel [26,23 736x47] {enabled,sensitive,showing,visible}
       filler [715,23 41x46] {enabled,horizontal,sensitive,showing,visible}
         separator [715,23 1x46] {enabled,sensitive,showing,vertical,visible}
@@ -7,7 +7,7 @@ application "org.gnome.Terminal"
       button "Find" [631,23 36x46] {enabled,focusable,sensitive,showing,visible} actions=[click]
       toggle button "Menu" [673,23 36x46] {enabled,focusable,sensitive,showing,visible} actions=[click]
       filler [300,36 187x19] {enabled,sensitive,showing,vertical,visible}
-        label "patrick@archgnome:~" [300,36 187x19] {enabled,multi-line,sensitive,showing,visible}
+        label "user@desktop:~" [300,36 187x19] {enabled,multi-line,sensitive,showing,visible}
         label [-2147483648,-2147483648 1x1] {enabled,multi-line,sensitive}
       filler [32,23 36x46] {enabled,horizontal,sensitive,showing,visible}
         button "New Tab" [32,23 36x46] {enabled,focusable,sensitive,showing,visible} actions=[click]

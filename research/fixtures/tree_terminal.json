@@ -13,7 +13,7 @@
   "children": [
     {
       "role": "frame",
-      "name": "patrick@archgnome:~",
+      "name": "user@desktop:~",
       "bbox": {
         "x": 0,
         "y": 0,
@@ -175,7 +175,7 @@
               "children": [
                 {
                   "role": "label",
-                  "name": "patrick@archgnome:~",
+                  "name": "user@desktop:~",
                   "bbox": {
                     "x": 300,
                     "y": 36,
