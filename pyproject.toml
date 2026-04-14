@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tine-cli"
+version = "0.1.0"
+description = "Drive a GNOME Wayland desktop from AI agents. CLI-first, no portals, no consent dialogs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Patrick Smyth" },
+]
+keywords = [
+    "ai",
+    "agent",
+    "automation",
+    "wayland",
+    "gnome",
+    "accessibility",
+    "at-spi",
+    "claude",
+    "llm",
+    "desktop",
+    "computer-use",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Desktop Environment :: Gnome",
+]
+dependencies = [
+    "evdev>=1.6",
+    "Pillow>=10.0",
+    "PyGObject>=3.42",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "build>=1.0",
+    "twine>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/smythp/tine"
+Repository = "https://github.com/smythp/tine"
+Issues = "https://github.com/smythp/tine/issues"
+
+[project.scripts]
+tine = "tine.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["tine*"]
+exclude = ["tests*", "research*", "worktrees*", "tine.tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tine/tests"]
+python_files = ["test_*.py"]
