@@ -1,0 +1,7 @@
+{
+  "uuid": "ocr-screenshot@local",
+  "name": "OCR Screenshot",
+  "description": "Screenshot service for OCR pipeline. Exposes D-Bus methods for full-screen and region capture, bypassing GNOME Wayland screenshot restrictions.",
+  "shell-version": ["49"],
+  "session-modes": ["user"]
+}
