@@ -16,7 +16,7 @@ def test_cmd_describe_copies_app_name_from_describe_result(monkeypatch, tmp_path
     cache_path = tmp_path / "refs.json"
     monkeypatch.setenv("TINE_REF_CACHE", str(cache_path))
 
-    def fake_describe(app, annotate, scale, ocr=False, window_offset=(0, 0)):
+    def fake_describe(app, annotate, scale, ocr=False):
         return {
             "tree": "\napplication 'MyApp'\n  window 'x'",
             "ref_cache": {"ref_1": {"bbox": {"x": 1, "y": 2, "w": 3, "h": 4}}},

@@ -17,8 +17,7 @@ BUG_MARKER = "cli_audit_regression"
 def test_cmd_describe_persists_app_name_in_cache(monkeypatch):
     saved = {}
 
-    def fake_describe(app=None, annotate=False, scale=1.0, ocr=False,
-                      window_offset=(0, 0)):
+    def fake_describe(app=None, annotate=False, scale=1.0, ocr=False):
         return {
             "tree": 'application "Calculator"\n  button "1"',
             "ref_cache": {"ref_1": {"bbox": {"x": 1, "y": 2, "w": 3, "h": 4}}},
