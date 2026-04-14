@@ -30,6 +30,9 @@ tine screenshot                # full screen capture via extension
 tine screenshot --annotate     # Set-of-Mark overlays
 tine screenshot --grid         # labeled coordinate grid (A1, B3, ...)
 tine screenshot --annotate --grid
+tine screenshot --ocr          # OCR text detection (ref_tN)
+tine describe --ocr            # include OCR text refs in describe output
+tine click ref_t3              # click center of OCR-detected text region
 tine click ref_3               # click at ref_3's bounding box center
 tine click B3                  # click center of grid cell B3
 tine click 450,320             # click at pixel coordinates

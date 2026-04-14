@@ -18,7 +18,12 @@ import tine.refs
 import tine.screenshot
 import tine.tree
 from tine.display import get_display_config
+from tine.refs import REF_ID_PATTERN, is_text_ref
 from tine.walker import walk_atspi as _walk_atspi
+from tine.window_offset import (
+    normalize_app_name as _normalize_app_name,
+    resolve_window_offset as _resolve_window_offset,
+)
 
 
 _ALLOWED_CACHE_DIRS = (
@@ -53,95 +58,6 @@ def _ref_cache_path():
         f'({", ".join(_ALLOWED_CACHE_DIRS)})'
     )
 
-
-
-def _normalize_app_name(name):
-    """Normalize an app name/wm_class/app_id for cross-format matching.
-
-    AT-SPI2 reports app names with hyphens (e.g. "gnome-calculator") while
-    GNOME's wm_class and app_id use reverse-domain notation with dots
-    (e.g. "org.gnome.Calculator").  Removing separators and common prefixes
-    lets substring matching work across both formats.
-
-    Examples:
-        "gnome-calculator"      → "gnomecalculator"
-        "org.gnome.Calculator"  → "gnomecalculator"
-        "org.gnome.TextEditor"  → "gnometexteditor"
-        "gnome-text-editor"     → "gnometexteditor"
-        "firefox"               → "firefox"
-    """
-    if not name:
-        return ''
-    s = name.lower()
-    # Strip common reverse-domain prefixes used in wm_class and app_id
-    for prefix in ('org.', 'com.', 'net.', 'io.'):
-        if s.startswith(prefix):
-            s = s[len(prefix):]
-            break
-    # Remove separators so hyphens and dots compare equal
-    s = s.replace('-', '').replace('.', '')
-    return s
-
-
-def _pick_best_match(matches):
-    """From a list of matching windows, prefer the focused one."""
-    for w in matches:
-        if w.get('focused'):
-            return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
-    w = matches[0]
-    return (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
-
-
-def _resolve_window_offset(app_name):
-    """Match app name against window list to get (x, y) offset.
-
-    Matching order:
-    1. Normalized wm_class substring (handles AT-SPI2 hyphens vs reverse-domain dots)
-    2. Normalized app_id substring (for GNOME extensions that expose this field)
-    3. Raw title substring (case-insensitive, last resort)
-
-    When multiple windows match (e.g. two instances of the same app),
-    the focused window is preferred.
-
-    Falls back to (0, 0) with stderr warning.
-    """
-    if not app_name:
-        print('Warning: empty _app, cannot resolve window offset — using (0, 0)',
-              file=sys.stderr)
-        return (0, 0)
-
-    try:
-        windows = tine.screenshot.list_windows()
-    except Exception:
-        print('Warning: could not list windows — using offset (0, 0)',
-              file=sys.stderr)
-        return (0, 0)
-
-    app_norm = _normalize_app_name(app_name)
-
-    # 1. Normalized wm_class substring match
-    if app_norm:
-        matches = [w for w in windows
-                   if w.get('wm_class') and app_norm in _normalize_app_name(w['wm_class'])]
-        if matches:
-            return _pick_best_match(matches)
-
-    # 2. Normalized app_id substring match
-    if app_norm:
-        matches = [w for w in windows
-                   if w.get('app_id') and app_norm in _normalize_app_name(w['app_id'])]
-        if matches:
-            return _pick_best_match(matches)
-
-    # 3. Fall back to raw title substring match (case-insensitive)
-    app_lower = app_name.lower()
-    matches = [w for w in windows if app_lower in w.get('title', '').lower()]
-    if matches:
-        return _pick_best_match(matches)
-
-    print(f'Warning: no window match for "{app_name}" — using offset (0, 0)',
-          file=sys.stderr)
-    return (0, 0)
 
 
 def _focus_window(window):
@@ -203,33 +119,56 @@ def _cmd_screenshot(args):
     """Handle 'screenshot' subcommand."""
     path = tine.screenshot.capture(output_path=args.output)
 
-    if args.annotate:
-        cache = tine.refs.load_ref_cache(_ref_cache_path())
-        # Only annotate if there are actual refs (not just _app or empty)
-        real_refs = {k: v for k, v in cache.items() if k != '_app'} if cache else {}
-        if real_refs:
-            app_name = cache.get('_app', '')
-            offset = _resolve_window_offset(app_name)
+    cache = tine.refs.load_ref_cache(_ref_cache_path())
+    real_refs = {k: v for k, v in cache.items() if k != '_app'} if cache else {}
+    app_name = cache.get('_app', '') if cache else ''
 
-            # Create adjusted copy with screen-logical coords
-            adjusted = {}
-            for ref_id, ref_data in real_refs.items():
-                if not isinstance(ref_data, dict):
-                    continue
-                adjusted_data = copy.deepcopy(ref_data)
-                bbox = adjusted_data.get('bbox') or {}
-                adjusted_data['bbox'] = bbox
-                coord_space = bbox.get('coord', 'window')
-                if coord_space != 'screen':
-                    # Window-relative — add frame_rect position
-                    bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0]
-                    bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1]
-                adjusted[ref_id] = adjusted_data
+    if args.annotate and real_refs:
+        offset = _resolve_window_offset(app_name)
 
-            tine.screenshot.annotate(path, adjusted, scale=args.scale)
+        adjusted = {}
+        for ref_id, ref_data in real_refs.items():
+            if not isinstance(ref_data, dict):
+                continue
+            adjusted_data = copy.deepcopy(ref_data)
+            bbox = adjusted_data.get('bbox') or {}
+            adjusted_data['bbox'] = bbox
+            coord_space = bbox.get('coord', 'window')
+            if coord_space != 'screen':
+                bbox['x'] = _safe_coord(bbox.get('x', 0)) + offset[0]
+                bbox['y'] = _safe_coord(bbox.get('y', 0)) + offset[1]
+            adjusted[ref_id] = adjusted_data
+
+        tine.screenshot.annotate(path, adjusted, scale=args.scale)
 
     if args.grid:
         tine.screenshot.grid_overlay(path, grid_size=args.grid_size)
+
+    if getattr(args, 'ocr', False):
+        from tine.ocr import (
+            assign_text_refs, dedup_against_atspi, detect_text,
+            next_text_ref_index,
+        )
+        offset = _resolve_window_offset(app_name) if app_name else (0, 0)
+        detections = detect_text(path, scale=args.scale)
+        detections = dedup_against_atspi(
+            detections, cache or {}, window_offset=offset, scale=args.scale,
+        )
+        merged = dict(cache) if cache else {}
+        start_index = next_text_ref_index(merged)
+        text_refs = assign_text_refs(detections, start_index=start_index)
+        merged.update(text_refs)
+        if app_name:
+            merged['_app'] = app_name
+        tine.refs.save_ref_cache(merged, _ref_cache_path())
+        for ref_id, entry in text_refs.items():
+            bbox = entry.get('bbox') or {}
+            print(
+                f"{ref_id}: {entry.get('text', '')!r} "
+                f"at ({bbox.get('x')},{bbox.get('y')}) "
+                f"{bbox.get('w')}x{bbox.get('h')}",
+                file=sys.stderr,
+            )
 
     print(path)
 
@@ -238,11 +177,12 @@ def _cmd_click(args):
     """Handle 'click' subcommand."""
     target = args.target
 
-    # Check if target is a ref (ref_N pattern)
-    if re.match(r'^ref_\d+$', target):
+    # Check if target is a ref (ref_N or ref_tN pattern)
+    if REF_ID_PATTERN.match(target):
         cache = tine.refs.load_ref_cache(_ref_cache_path())
         if not cache:
-            print('Error: no ref cache found. Run "tine tree" first.',
+            hint = 'tine describe --ocr' if is_text_ref(target) else 'tine tree'
+            print(f'Error: no ref cache found. Run "{hint}" first.',
                   file=sys.stderr)
             sys.exit(1)
 
@@ -255,8 +195,14 @@ def _cmd_click(args):
                   file=sys.stderr)
             sys.exit(1)
 
-        app_name = cache.get('_app', '')
-        offset = _resolve_window_offset(app_name)
+        # Text refs are always screen-absolute (coord=screen on the bbox);
+        # click_ref reads that and skips the window-offset adjustment.
+        # AT-SPI2 refs still need the offset resolved.
+        if is_text_ref(target):
+            offset = (0, 0)
+        else:
+            app_name = cache.get('_app', '')
+            offset = _resolve_window_offset(app_name)
         kwargs = {'window_offset': offset, 'button': args.button}
         if args.double:
             kwargs['double'] = True
@@ -493,30 +439,18 @@ def _cmd_describe(args):
             app=getattr(args, 'app', None),
             annotate=args.annotate,
             scale=args.scale,
+            ocr=getattr(args, 'ocr', False),
         )
     except RuntimeError as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    # Format output first, before mutating ref_cache with _app
     output = tine.describe.format_for_agent(result)
 
-    # Save ref cache with _app metadata (copy to avoid mutating describe()'s result)
+    # Save ref cache with _app metadata. describe() now returns app_name
+    # directly from the walker, so no tree-text parsing is needed.
     ref_cache = dict(result.get('ref_cache') or {})
-    tree_text = result.get('tree', '')
-
-    # Extract app name from tree text (first line: "application 'Name'").
-    # This is coupled to format_tree output — when describe() returns structured
-    # data (post-RSP A integration), extract from the dict directly instead.
-    app_name = ''
-    if tree_text:
-        # re.search (not match) handles leading whitespace/newlines.
-        # Backreference (?P=q) ensures closing quote matches opening quote,
-        # allowing apostrophes in double-quoted names and vice-versa.
-        m = re.search(r"""application\s+(?P<q>['"])(?P<name>.*?)(?P=q)""", tree_text)
-        if m:
-            app_name = m.group('name')
-    ref_cache['_app'] = app_name
+    ref_cache['_app'] = result.get('app_name', '')
     tine.refs.save_ref_cache(ref_cache, _ref_cache_path())
 
     print(output)
@@ -542,6 +476,9 @@ def main(argv=None):
                            help='Grid spacing in physical pixels (default 450)')
     ss_parser.add_argument('--scale', type=float, default=_default_scale,
                            help='Display scale factor')
+    ss_parser.add_argument('--ocr', action='store_true',
+                           help='Run OCR on the screenshot and add ref_tN '
+                                'entries to the ref cache')
     ss_parser.add_argument('--output', '-o', default=None,
                            help='Output path for screenshot PNG')
 
@@ -607,6 +544,9 @@ def main(argv=None):
                              help='Add Set-of-Mark overlays')
     desc_parser.add_argument('--scale', type=float, default=_default_scale,
                              help='Display scale factor')
+    desc_parser.add_argument('--ocr', action='store_true',
+                             help='Run OCR on the screenshot and include '
+                                  'detected text regions as ref_tN entries')
 
     args = parser.parse_args(argv)
 

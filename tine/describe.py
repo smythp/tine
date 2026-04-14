@@ -1,7 +1,12 @@
-"""Combined tree + screenshot for agent orientation.
+"""Combined tree + screenshot + optional OCR for agent orientation.
 
 describe() gives an agent a complete picture of the current desktop state.
 format_for_agent() formats the result as text for LLM consumption.
+
+With ``ocr=True``, detected text regions get ``ref_tN`` IDs merged into the
+same ref cache as the AT-SPI2 refs. Text refs that duplicate a named AT-SPI2
+ref (same normalized text, OCR center inside the AT-SPI2 bbox) are dropped
+so the agent sees each thing once.
 """
 
 import os
@@ -12,10 +17,10 @@ from tine.walker import walk_atspi
 
 
 def _get_tree(app=None):
-    """Run the AT-SPI2 pipeline and return formatted tree and ref cache.
+    """Run the AT-SPI2 pipeline and return formatted tree, ref cache, and app name.
 
     Returns:
-        Tuple of (formatted_tree_text, ref_cache).
+        Tuple of (formatted_tree_text, ref_cache, app_name).
 
     Raises:
         RuntimeError: if the AT-SPI2 walker subprocess fails.
@@ -23,7 +28,9 @@ def _get_tree(app=None):
     raw_tree = walk_atspi(app=app)
     collapsed = tine.tree.collapse_containers(raw_tree)
     annotated, ref_cache = tine.tree.assign_refs(collapsed)
-    return tine.tree.format_tree(annotated), ref_cache
+    app_name = (raw_tree.get('name', '')
+                or raw_tree.get('application', {}).get('name', ''))
+    return tine.tree.format_tree(annotated), ref_cache, app_name
 
 
 def _get_windows():
@@ -42,21 +49,50 @@ def _capture_screenshot(path, annotate=False, ref_cache=None, scale=1.0):
     return path
 
 
-def describe(app=None, annotate=False, scale=1.0):
+def _run_ocr(screenshot_path, ref_cache, scale, app_name):
+    """Run OCR on the screenshot, dedup against AT-SPI2 refs, merge ref_tN.
+
+    Resolves the window offset from app_name internally so callers don't
+    need to compute it.
+
+    Mutates ref_cache in place. Returns the list of assigned text refs
+    (ordered) so format_for_agent can emit them in detection order.
+    """
+    from tine.ocr import (
+        assign_text_refs, dedup_against_atspi, detect_text,
+        next_text_ref_index,
+    )
+    from tine.window_offset import resolve_window_offset
+
+    window_offset = resolve_window_offset(app_name)
+    detections = detect_text(screenshot_path, scale=scale)
+    detections = dedup_against_atspi(
+        detections, ref_cache, window_offset=window_offset, scale=scale,
+    )
+    start_index = next_text_ref_index(ref_cache)
+    text_refs = assign_text_refs(detections, start_index=start_index)
+    ref_cache.update(text_refs)
+    return list(text_refs.keys())
+
+
+def describe(app=None, annotate=False, scale=1.0, ocr=False):
     """Get combined desktop state for agent orientation.
 
     Args:
         app: Optional app name to filter tree to.
         annotate: If True, screenshot includes Set-of-Mark overlays.
-        scale: Display scale factor for annotation coordinates.
+        scale: Display scale factor.
+        ocr: If True, run OCR on the captured screenshot and merge
+            ``ref_tN`` entries into the ref cache.
 
     Returns:
-        Dict with keys: tree, screenshot, windows, ref_cache.
+        Dict with keys: tree, screenshot, windows, ref_cache, app_name,
+        text_ref_order (list of ref_tN keys in detection order).
 
     Raises:
         RuntimeError: if the AT-SPI2 walker fails.
     """
-    tree, ref_cache = _get_tree(app=app)
+    tree, ref_cache, app_name = _get_tree(app=app)
     windows = _get_windows()
 
     fd, screenshot_path = tempfile.mkstemp(suffix='.png', prefix='tine-describe-')
@@ -64,11 +100,19 @@ def describe(app=None, annotate=False, scale=1.0):
     _capture_screenshot(screenshot_path, annotate=annotate,
                         ref_cache=ref_cache, scale=scale)
 
+    text_ref_order = []
+    if ocr:
+        text_ref_order = _run_ocr(
+            screenshot_path, ref_cache, scale, app_name,
+        )
+
     return {
         'tree': tree,
         'screenshot': screenshot_path,
         'windows': windows,
         'ref_cache': ref_cache,
+        'app_name': app_name,
+        'text_ref_order': text_ref_order,
     }
 
 
@@ -79,11 +123,10 @@ def format_for_agent(result):
         result: Dict from describe().
 
     Returns:
-        Formatted string with tree, windows, and screenshot path.
+        Formatted string with windows, tree, detected text, and screenshot path.
     """
     sections = []
 
-    # Windows section
     windows = result.get('windows', [])
     if windows:
         lines = ['## Windows']
@@ -103,14 +146,29 @@ def format_for_agent(result):
     else:
         sections.append('## Windows\nNo windows open.')
 
-    # Tree section
     tree = result.get('tree', '')
     if tree:
         sections.append(f'## Accessibility Tree\n{tree}')
     else:
         sections.append('## Accessibility Tree\nNo tree available.')
 
-    # Screenshot
+    text_ref_order = result.get('text_ref_order') or []
+    if text_ref_order:
+        ref_cache = result.get('ref_cache') or {}
+        lines = ['## Detected Text']
+        for ref_id in text_ref_order:
+            entry = ref_cache.get(ref_id)
+            if not isinstance(entry, dict):
+                continue
+            text = entry.get('text', '')
+            bbox = entry.get('bbox') or {}
+            x = bbox.get('x', '?')
+            y = bbox.get('y', '?')
+            w = bbox.get('w', '?')
+            h = bbox.get('h', '?')
+            lines.append(f'{ref_id}: {text!r} at ({x},{y}) {w}x{h}')
+        sections.append('\n'.join(lines))
+
     screenshot = result.get('screenshot', '')
     if screenshot:
         sections.append(f'## Screenshot\n{screenshot}')
