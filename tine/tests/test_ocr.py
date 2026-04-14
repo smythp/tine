@@ -140,6 +140,17 @@ class TestDetectText:
         _patch_engine(monkeypatch, engine)
         assert ocr.detect_text('/tmp/unused.png') == []
 
+    def test_drops_zero_size_bbox_after_scaling(self, monkeypatch):
+        """A 1px-wide detection at scale=2.0 yields w=0 after int truncation."""
+        engine = _FakeEngine(
+            boxes=[[[100, 200], [101, 200], [101, 220], [100, 220]]],
+            txts=['thin'],
+            scores=[0.99],
+        )
+        _patch_engine(monkeypatch, engine)
+        result = ocr.detect_text('/tmp/unused.png', scale=2.0)
+        assert result == []
+
     def test_coord_marked_screen(self, monkeypatch):
         """Every OCR bbox carries coord=screen so click_ref skips window offset."""
         engine = _FakeEngine(

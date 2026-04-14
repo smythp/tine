@@ -23,7 +23,12 @@ def _get_engine():
     global _engine
     if _engine is not None:
         return _engine
-    from rapidocr import RapidOCR
+    try:
+        from rapidocr import RapidOCR
+    except ImportError as e:
+        raise RuntimeError(
+            "RapidOCR is not installed. Install with: pip install rapidocr onnxruntime"
+        ) from e
     _engine = RapidOCR()
     return _engine
 
@@ -94,6 +99,8 @@ def detect_text(image_path, scale=1.0, min_confidence=DEFAULT_MIN_CONFIDENCE):
         if raw_bbox['w'] <= 0 or raw_bbox['h'] <= 0:
             continue
         bbox = _scale_bbox(raw_bbox, scale)
+        if bbox['w'] <= 0 or bbox['h'] <= 0:
+            continue
         bbox['coord'] = 'screen'
         detections.append({
             'text': text,
@@ -122,6 +129,20 @@ def assign_text_refs(detections, start_index=1):
             'confidence': det['confidence'],
         }
     return cache
+
+
+def next_text_ref_index(ref_cache):
+    """Highest existing ref_tN index + 1, or 1 if none."""
+    max_idx = 0
+    for key in ref_cache:
+        if key.startswith('ref_t'):
+            try:
+                idx = int(key[len('ref_t'):])
+            except ValueError:
+                continue
+            if idx > max_idx:
+                max_idx = idx
+    return max_idx + 1
 
 
 def _bbox_center(bbox):

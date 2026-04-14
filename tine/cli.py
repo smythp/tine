@@ -147,6 +147,7 @@ def _cmd_screenshot(args):
     if getattr(args, 'ocr', False):
         from tine.ocr import (
             assign_text_refs, dedup_against_atspi, detect_text,
+            next_text_ref_index,
         )
         offset = _resolve_window_offset(app_name) if app_name else (0, 0)
         detections = detect_text(path, scale=args.scale)
@@ -154,15 +155,7 @@ def _cmd_screenshot(args):
             detections, cache or {}, window_offset=offset, scale=args.scale,
         )
         merged = dict(cache) if cache else {}
-        start_index = 1
-        for key in merged:
-            if key.startswith('ref_t'):
-                try:
-                    idx = int(key[len('ref_t'):])
-                except ValueError:
-                    continue
-                if idx >= start_index:
-                    start_index = idx + 1
+        start_index = next_text_ref_index(merged)
         text_refs = assign_text_refs(detections, start_index=start_index)
         merged.update(text_refs)
         if app_name:
@@ -441,29 +434,12 @@ def _cmd_inputd(args):
 
 def _cmd_describe(args):
     """Handle 'describe' subcommand."""
-    ocr = getattr(args, 'ocr', False)
-
-    # If OCR is on, resolve the focused-window offset before describe() so
-    # dedup against AT-SPI2 (window-relative) refs lands in the right coord
-    # space. We don't know the app name yet, so use the focused window.
-    window_offset = (0, 0)
-    if ocr:
-        try:
-            windows = tine.screenshot.list_windows()
-        except Exception:
-            windows = []
-        for w in windows:
-            if w.get('focused'):
-                window_offset = (_safe_coord(w.get('x')), _safe_coord(w.get('y')))
-                break
-
     try:
         result = tine.describe.describe(
             app=getattr(args, 'app', None),
             annotate=args.annotate,
             scale=args.scale,
-            ocr=ocr,
-            window_offset=window_offset,
+            ocr=getattr(args, 'ocr', False),
         )
     except RuntimeError as e:
         print(str(e), file=sys.stderr)

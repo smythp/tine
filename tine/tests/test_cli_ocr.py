@@ -85,10 +85,8 @@ class TestDescribeOcrFlag:
 
         captured = {}
 
-        def fake_describe(app=None, annotate=False, scale=1.0, ocr=False,
-                          window_offset=(0, 0)):
+        def fake_describe(app=None, annotate=False, scale=1.0, ocr=False):
             captured['ocr'] = ocr
-            captured['window_offset'] = window_offset
             return {
                 'tree': '', 'screenshot': '/tmp/x.png',
                 'windows': [], 'ref_cache': {}, 'app_name': '',
@@ -97,15 +95,11 @@ class TestDescribeOcrFlag:
 
         import tine.cli as cli_mod
         import tine.describe
-        import tine.screenshot
         monkeypatch.setattr(tine.describe, 'describe', fake_describe)
-        monkeypatch.setattr(tine.screenshot, 'list_windows',
-                            lambda: [{'focused': True, 'x': 320, 'y': 168}])
 
         cli_mod.main(['describe', '--ocr'])
 
         assert captured['ocr'] is True
-        assert captured['window_offset'] == (320, 168)
 
 
 class TestScreenshotOcrFlag:

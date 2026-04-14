@@ -49,42 +49,33 @@ def _capture_screenshot(path, annotate=False, ref_cache=None, scale=1.0):
     return path
 
 
-def _next_text_ref_index(ref_cache):
-    """Highest existing ref_tN index + 1, or 1 if none."""
-    max_idx = 0
-    for key in ref_cache:
-        if key.startswith('ref_t'):
-            try:
-                idx = int(key[len('ref_t'):])
-            except ValueError:
-                continue
-            if idx > max_idx:
-                max_idx = idx
-    return max_idx + 1
-
-
-def _run_ocr(screenshot_path, ref_cache, scale, window_offset):
+def _run_ocr(screenshot_path, ref_cache, scale, app_name):
     """Run OCR on the screenshot, dedup against AT-SPI2 refs, merge ref_tN.
+
+    Resolves the window offset from app_name internally so callers don't
+    need to compute it.
 
     Mutates ref_cache in place. Returns the list of assigned text refs
     (ordered) so format_for_agent can emit them in detection order.
     """
     from tine.ocr import (
         assign_text_refs, dedup_against_atspi, detect_text,
+        next_text_ref_index,
     )
+    from tine.window_offset import resolve_window_offset
 
+    window_offset = resolve_window_offset(app_name)
     detections = detect_text(screenshot_path, scale=scale)
     detections = dedup_against_atspi(
         detections, ref_cache, window_offset=window_offset, scale=scale,
     )
-    start_index = _next_text_ref_index(ref_cache)
+    start_index = next_text_ref_index(ref_cache)
     text_refs = assign_text_refs(detections, start_index=start_index)
     ref_cache.update(text_refs)
     return list(text_refs.keys())
 
 
-def describe(app=None, annotate=False, scale=1.0, ocr=False,
-             window_offset=(0, 0)):
+def describe(app=None, annotate=False, scale=1.0, ocr=False):
     """Get combined desktop state for agent orientation.
 
     Args:
@@ -93,8 +84,6 @@ def describe(app=None, annotate=False, scale=1.0, ocr=False,
         scale: Display scale factor.
         ocr: If True, run OCR on the captured screenshot and merge
             ``ref_tN`` entries into the ref cache.
-        window_offset: (x, y) screen-logical origin of the focused window,
-            used for OCR dedup against window-relative AT-SPI2 bboxes.
 
     Returns:
         Dict with keys: tree, screenshot, windows, ref_cache, app_name,
@@ -114,7 +103,7 @@ def describe(app=None, annotate=False, scale=1.0, ocr=False,
     text_ref_order = []
     if ocr:
         text_ref_order = _run_ocr(
-            screenshot_path, ref_cache, scale, window_offset,
+            screenshot_path, ref_cache, scale, app_name,
         )
 
     return {

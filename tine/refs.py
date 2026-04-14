@@ -27,11 +27,6 @@ REF_ID_PATTERN = re.compile(r'^ref_t?\d+$')
 TEXT_REF_PATTERN = re.compile(r'^ref_t\d+$')
 
 
-def is_ref_id(s):
-    """Return True if ``s`` matches either ref namespace."""
-    return isinstance(s, str) and bool(REF_ID_PATTERN.match(s))
-
-
 def is_text_ref(s):
     """Return True if ``s`` is an OCR text ref (``ref_tN``)."""
     return isinstance(s, str) and bool(TEXT_REF_PATTERN.match(s))

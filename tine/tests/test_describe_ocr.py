@@ -40,6 +40,7 @@ class TestDescribeOcr:
     def test_describe_with_ocr_merges_ref_tn(self, monkeypatch, tmp_path):
         import tine.describe as desc
         import tine.ocr as ocr_mod
+        import tine.window_offset
 
         monkeypatch.setattr(
             desc, '_get_tree',
@@ -48,6 +49,8 @@ class TestDescribeOcr:
         monkeypatch.setattr(desc, '_get_windows', lambda: [])
         monkeypatch.setattr(desc, '_capture_screenshot',
                             lambda path, **kw: _make_screenshot(path))
+        monkeypatch.setattr(tine.window_offset, 'resolve_window_offset',
+                            lambda app, **kw: (0, 0))
 
         def fake_detect(image_path, scale=1.0, min_confidence=0.8):
             return [{
@@ -58,7 +61,6 @@ class TestDescribeOcr:
             }]
 
         monkeypatch.setattr(ocr_mod, 'detect_text', fake_detect)
-        # dedup_against_atspi is a pass-through for an empty atspi cache
 
         result = desc.describe(ocr=True)
 
@@ -70,6 +72,7 @@ class TestDescribeOcr:
         """A duplicated 'Log In' ref should not show up twice."""
         import tine.describe as desc
         import tine.ocr as ocr_mod
+        import tine.window_offset
 
         atspi_cache = {
             'ref_1': {'role': 'button', 'name': 'Log In',
@@ -83,6 +86,8 @@ class TestDescribeOcr:
         monkeypatch.setattr(desc, '_get_windows', lambda: [])
         monkeypatch.setattr(desc, '_capture_screenshot',
                             lambda path, **kw: _make_screenshot(path))
+        monkeypatch.setattr(tine.window_offset, 'resolve_window_offset',
+                            lambda app, **kw: (0, 0))
 
         def fake_detect(image_path, scale=1.0, min_confidence=0.8):
             return [{
@@ -135,15 +140,15 @@ class TestDescribeOcr:
 
 class TestNextTextRefIndex:
     def test_empty_cache_returns_one(self):
-        import tine.describe as desc
-        assert desc._next_text_ref_index({}) == 1
+        import tine.ocr as ocr_mod
+        assert ocr_mod.next_text_ref_index({}) == 1
 
     def test_ignores_atspi_refs(self):
-        import tine.describe as desc
+        import tine.ocr as ocr_mod
         cache = {'ref_1': {}, 'ref_2': {}, '_app': 'foo'}
-        assert desc._next_text_ref_index(cache) == 1
+        assert ocr_mod.next_text_ref_index(cache) == 1
 
     def test_returns_max_plus_one(self):
-        import tine.describe as desc
+        import tine.ocr as ocr_mod
         cache = {'ref_t1': {}, 'ref_t5': {}, 'ref_t3': {}}
-        assert desc._next_text_ref_index(cache) == 6
+        assert ocr_mod.next_text_ref_index(cache) == 6
