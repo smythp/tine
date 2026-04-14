@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies for evdev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libevdev-dev
+
+      - name: Install tine (test extras, no PyGObject)
+        run: |
+          python -m pip install --upgrade pip
+          # PyGObject requires gobject-introspection system libs and is only
+          # touched at runtime on a live desktop. Unit tests mock AT-SPI reads,
+          # so we install evdev and Pillow directly and skip PyGObject in CI.
+          pip install evdev>=1.6 Pillow>=10.0
+          pip install pytest>=7.4 pytest-cov>=4.1
+          pip install --no-deps -e .
+
+      - name: Run tests
+        run: pytest -v
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check pyproject.toml parses
+        run: |
+          python -c "import tomllib; tomllib.load(open('pyproject.toml','rb'))"
+
+      - name: Check package is buildable
+        run: |
+          pip install build
+          python -m build --sdist --wheel
+          ls -la dist/
