@@ -67,3 +67,6 @@ shards/
 LAUNCH_POSTS.md
 hn_post.txt
 RELEASE_NOTES_v0.1.0.md
+
+# Local agent context — personal dev notes, not for public repo
+CLAUDE.local.md
