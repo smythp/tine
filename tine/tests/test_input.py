@@ -105,6 +105,85 @@ def default_scale(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Device capability regression — BTN_TOUCH must NOT appear
+# ---------------------------------------------------------------------------
+
+class TestUinputCapabilities:
+    """Regression: tine-input must not advertise BTN_TOUCH.
+
+    Firefox's Wayland pointer path ignores events from devices that
+    advertise BTN_TOUCH in their EV_KEY set, even when the device is
+    classified by libinput as a plain pointer. The finding was traced
+    via probe devices on archgnome (2026-04-15): dropping BTN_TOUCH
+    made tine clicks land on Firefox without affecting GTK clients.
+    See finding-20260414-0y45.
+    """
+
+    def _captured_caps(self, monkeypatch):
+        """Intercept UInput() and return the caps dict that was passed in."""
+        captured = {}
+
+        class FakeDev:
+            def close(self): pass
+
+        def fake_uinput_ctor(capabilities, name=None, input_props=None):
+            captured['capabilities'] = capabilities
+            captured['name'] = name
+            captured['input_props'] = input_props
+            return FakeDev()
+
+        import tine.input
+        monkeypatch.setattr(tine.input, 'UInput', fake_uinput_ctor)
+        monkeypatch.setattr(tine.input, '_uinput_device', None)
+        import time
+        monkeypatch.setattr(time, 'sleep', lambda _s: None)
+        tine.input._get_uinput()
+        return captured
+
+    def test_input_device_has_no_btn_touch(self, monkeypatch):
+        from evdev import ecodes
+
+        captured = self._captured_caps(monkeypatch)
+        key_caps = captured['capabilities'].get(ecodes.EV_KEY, [])
+        assert ecodes.BTN_TOUCH not in key_caps, (
+            'tine-input must not advertise BTN_TOUCH — breaks Firefox clicks'
+        )
+
+    def test_input_device_has_mouse_buttons(self, monkeypatch):
+        from evdev import ecodes
+
+        captured = self._captured_caps(monkeypatch)
+        key_caps = captured['capabilities'].get(ecodes.EV_KEY, [])
+        assert ecodes.BTN_LEFT in key_caps
+        assert ecodes.BTN_RIGHT in key_caps
+        assert ecodes.BTN_MIDDLE in key_caps
+
+    def test_inputd_device_has_no_btn_touch(self, monkeypatch):
+        """The daemon creates its own uinput device — same rule applies."""
+        from evdev import ecodes
+
+        captured = {}
+
+        class FakeDev:
+            def close(self): pass
+
+        def fake_uinput_ctor(capabilities, name=None, input_props=None):
+            captured['capabilities'] = capabilities
+            return FakeDev()
+
+        import tine.inputd
+        monkeypatch.setattr(tine.inputd, 'UInput', fake_uinput_ctor)
+        import time
+        monkeypatch.setattr(time, 'sleep', lambda _s: None)
+        tine.inputd._create_uinput()
+
+        key_caps = captured['capabilities'].get(ecodes.EV_KEY, [])
+        assert ecodes.BTN_TOUCH not in key_caps, (
+            'tine-input daemon must not advertise BTN_TOUCH — breaks Firefox clicks'
+        )
+
+
+# ---------------------------------------------------------------------------
 # move() tests
 # ---------------------------------------------------------------------------
 
