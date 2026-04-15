@@ -213,6 +213,30 @@ Tine is the only one that combines structured reads with portal-free input on Wa
 
 ---
 
+## Click sanity checks
+
+A1-class silent misses — the click physically lands but nothing interactive was there — are the worst failure mode when an agent drives a CLI, because the agent has no immediate signal that anything went wrong. Tine runs two cheap cross-checks to catch them.
+
+**Coord verification at describe time.** When `tine describe --ocr` runs, every named AT-SPI2 ref is cross-referenced against OCR detections with the same text. Each ref gets a `coord_verified` tag:
+
+| Value     | Meaning                                                                                       |
+|-----------|-----------------------------------------------------------------------------------------------|
+| `true`    | An OCR detection of the same text sits within ~20 px of the AT-SPI2 bbox center. Safe to click. |
+| `false`   | OCR found the text at a different pixel position. The AT-SPI2 bbox is likely wrong. If a `disputed_by` ref is shown, use that `ref_tN` instead — or fall back to `tine activate`. |
+| `unknown` | No OCR coverage or ambiguous match (duplicate text with mismatched counts). Treat as unverified. |
+
+When one or more refs come back `false` / `unknown`, `tine describe --ocr` prints a **Coord Verification** section listing them so the agent can pick a safer click target.
+
+**Post-click tree hash.** After `tine click ref_N`, tine walks the AT-SPI2 subtree for the focused app again and compares a structural hash (roles + names + states, no bboxes) against the pre-click state. If the hash is unchanged, it emits a stderr warning:
+
+```
+warning: click may not have landed — AT-SPI2 tree unchanged after click (app='Firefox')
+```
+
+This trips on silent misses and on genuinely idempotent clicks alike (clicking the same button that's already active). Treat it as a hint, not an error. To disable (e.g. benchmarking or slow-walker apps) set `TINE_NO_VERIFY_CLICK=1`.
+
+---
+
 ## Known limitations (v0.1)
 
 - **GNOME Shell / Wayland only.** Other compositors (KDE, Hyprland, Sway) should work for the input side, but the screenshot/focus path depends on the bundled GNOME Shell extension. PRs welcome.

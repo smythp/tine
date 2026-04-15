@@ -52,6 +52,7 @@ tine describe                  # screenshot + tree → combined context for agen
 - **Grid system.** When AT-SPI2 trees are sparse (shadow DOM, Chrome, most Electron apps), `screenshot --grid` overlays a labeled coordinate grid. Agents pick cells (B3, E5) and `click B3` resolves to cell center.
 - **Lowest practical level.** python-evdev/uinput for input (no portal consent). GNOME extension for screenshots and focus (no portal permission prompts). AT-SPI2 via D-Bus (standard accessibility, no special permissions).
 - **Target: GNOME Shell 49 Wayland on Linux.** Other compositors out of scope for v1.
+- **Click sanity-check layer.** `tine describe --ocr` tags every named AT-SPI2 ref with `coord_verified` (`true`/`false`/`unknown`) by cross-referencing OCR detections. A `false` tag means the AT-SPI2 bbox disagrees with the real pixel position of the matching text; the ref's `disputed_by` field points at the `ref_tN` you should use instead when present. `tine click ref_N` also does a before/after AT-SPI2 tree hash and emits a stderr warning when the click leaves the focused-app subtree unchanged. Disable with `TINE_NO_VERIFY_CLICK=1` if the walker is pathologically slow on a target app.
 
 ## Dependencies
 

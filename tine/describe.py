@@ -50,7 +50,21 @@ def _capture_screenshot(path, annotate=False, ref_cache=None, scale=1.0):
 
 
 def _run_ocr(screenshot_path, ref_cache, scale, app_name):
-    """Run OCR on the screenshot, dedup against AT-SPI2 refs, merge ref_tN.
+    """Run OCR on the screenshot, cross-check AT-SPI2 coords, merge ref_tN.
+
+    Pipeline:
+      1. detect text on the screenshot
+      2. ``verify_atspi_coords`` tags every named AT-SPI2 ref in
+         ``ref_cache`` with a ``coord_verified`` field (``true`` /
+         ``false`` / ``unknown``) and returns the set of disputed
+         detections — OCR hits whose pixel position disagrees with the
+         corresponding AT-SPI2 ref center
+      3. dedup with those disputed detections preserved, so the agent
+         can see both the AT-SPI2 ref and the OCR detection that
+         contradicts it
+      4. assign ``ref_tN`` ids to surviving detections
+      5. link ``disputed_by: ref_tN`` on the refs that have a surviving
+         dispute
 
     Resolves the window offset from app_name internally so callers don't
     need to compute it.
@@ -60,19 +74,39 @@ def _run_ocr(screenshot_path, ref_cache, scale, app_name):
     """
     from tine.ocr import (
         assign_text_refs, dedup_against_atspi, detect_text,
-        next_text_ref_index,
+        next_text_ref_index, verify_atspi_coords,
     )
     from tine.window_offset import resolve_window_offset
 
     window_offset = resolve_window_offset(app_name)
     detections = detect_text(screenshot_path, scale=scale)
-    detections = dedup_against_atspi(
+
+    disputes = verify_atspi_coords(
+        ref_cache, detections, window_offset=window_offset,
+    )
+    preserve_ids = {id(d) for d in disputes.values() if d is not None}
+
+    kept = dedup_against_atspi(
         detections, ref_cache, window_offset=window_offset, scale=scale,
+        preserve_ids=preserve_ids,
     )
     start_index = next_text_ref_index(ref_cache)
-    text_refs = assign_text_refs(detections, start_index=start_index)
+    text_refs = assign_text_refs(kept, start_index=start_index)
     ref_cache.update(text_refs)
-    return list(text_refs.keys())
+
+    text_ref_order = list(text_refs.keys())
+    for ref_id, disputed_det in disputes.items():
+        if disputed_det is None:
+            continue
+        for idx, det in enumerate(kept):
+            if det is disputed_det:
+                if idx < len(text_ref_order):
+                    entry = ref_cache.get(ref_id)
+                    if isinstance(entry, dict):
+                        entry['disputed_by'] = text_ref_order[idx]
+                break
+
+    return text_ref_order
 
 
 def describe(app=None, annotate=False, scale=1.0, ocr=False):
@@ -168,6 +202,42 @@ def format_for_agent(result):
             h = bbox.get('h', '?')
             lines.append(f'{ref_id}: {text!r} at ({x},{y}) {w}x{h}')
         sections.append('\n'.join(lines))
+
+    ref_cache_for_verify = result.get('ref_cache') or {}
+    verify_rows = []
+    for ref_id, entry in ref_cache_for_verify.items():
+        if ref_id == '_app' or not isinstance(entry, dict):
+            continue
+        if ref_id.startswith('ref_t'):
+            continue
+        status = entry.get('coord_verified')
+        if status in (None, 'true'):
+            continue
+        name = entry.get('name', '')
+        disputed_by = entry.get('disputed_by')
+        if disputed_by:
+            disputed_entry = ref_cache_for_verify.get(disputed_by) or {}
+            dbbox = disputed_entry.get('bbox') or {}
+            dx = dbbox.get('x', '?')
+            dy = dbbox.get('y', '?')
+            verify_rows.append(
+                f"{ref_id}: {name!r} coord_verified={status}, "
+                f"disputed by {disputed_by} at ({dx},{dy})"
+            )
+        else:
+            verify_rows.append(
+                f"{ref_id}: {name!r} coord_verified={status}"
+            )
+    if verify_rows:
+        sections.append(
+            '## Coord Verification\n'
+            'Refs whose AT-SPI2 coordinates disagree with OCR or have no '
+            'OCR cross-check. ``false`` means the click center is likely '
+            'wrong — prefer ``disputed by`` ref_tN if shown, or fall back '
+            'to ``tine activate`` / grid / target. ``unknown`` means no '
+            'definitive OCR match (ambiguous or no coverage).\n'
+            + '\n'.join(verify_rows)
+        )
 
     screenshot = result.get('screenshot', '')
     if screenshot:

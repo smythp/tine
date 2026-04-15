@@ -167,8 +167,112 @@ def normalize_text(s):
     return ''.join(ch for ch in s.casefold() if ch.isalnum())
 
 
+COORD_VERIFY_TOLERANCE = 20
+
+
+def _abs_bbox_center(bbox, window_offset):
+    """Absolute pixel center of an AT-SPI2 bbox, honouring coord space."""
+    x = bbox.get('x', 0)
+    y = bbox.get('y', 0)
+    w = bbox.get('w', 0)
+    h = bbox.get('h', 0)
+    if bbox.get('coord', 'window') != 'screen':
+        x += window_offset[0]
+        y += window_offset[1]
+    return (x + w // 2, y + h // 2)
+
+
+def verify_atspi_coords(atspi_cache, text_detections, window_offset=(0, 0),
+                        tolerance=COORD_VERIFY_TOLERANCE):
+    """Cross-check named AT-SPI2 refs against OCR detections.
+
+    For each named AT-SPI2 ref, look for OCR detections with the same
+    normalized text. Group by normalized name, and within each group:
+
+      * if the AT-SPI side and OCR side have the same non-zero count,
+        sort both lists by (y, x) and pair them by index, then compare
+        each pair's center-to-center distance against ``tolerance``;
+      * if the counts differ or either side is empty, mark the AT-SPI
+        refs in that group as ``unknown`` — we refuse to guess which
+        goes with which.
+
+    Mutates each touched AT-SPI ref entry in ``atspi_cache`` to add a
+    ``coord_verified`` field with value ``'true'``, ``'false'`` or
+    ``'unknown'``. Leaves unnamed refs alone (no field added).
+
+    Args:
+        atspi_cache: Ref cache from assign_refs (may contain _app).
+        text_detections: List from detect_text().
+        window_offset: (x, y) offset to add to window-relative AT-SPI2
+            bboxes so they share a coord space with screen-absolute OCR
+            bboxes.
+        tolerance: Maximum center-to-center distance (pixels) for a
+            matched pair to count as ``true``.
+
+    Returns:
+        Dict mapping ref_N id → the OCR detection object that disputes
+        its position (when coord_verified is ``'false'``), or ``None``
+        when there's no dispute. Lets the caller later resolve the
+        disputed detection to a ``ref_tN`` id once text refs are assigned.
+    """
+    refs_by_name = {}
+    for ref_id, entry in atspi_cache.items():
+        if ref_id == '_app' or not isinstance(entry, dict):
+            continue
+        if ref_id.startswith('ref_t'):
+            continue
+        name = entry.get('name', '')
+        bbox = entry.get('bbox')
+        if not name or not bbox:
+            continue
+        w = bbox.get('w', 0)
+        h = bbox.get('h', 0)
+        if w <= 0 or h <= 0:
+            continue
+        norm = normalize_text(name)
+        if not norm:
+            continue
+        center = _abs_bbox_center(bbox, window_offset)
+        refs_by_name.setdefault(norm, []).append((ref_id, center, entry))
+
+    dets_by_text = {}
+    for det in text_detections:
+        norm = normalize_text(det.get('text', ''))
+        if not norm:
+            continue
+        bbox = det.get('bbox') or {}
+        if bbox.get('w', 0) <= 0 or bbox.get('h', 0) <= 0:
+            continue
+        center = _bbox_center(bbox)
+        dets_by_text.setdefault(norm, []).append((det, center))
+
+    disputes = {}
+    tol_sq = tolerance * tolerance
+
+    for norm, ref_group in refs_by_name.items():
+        det_group = dets_by_text.get(norm, [])
+        if not det_group or len(ref_group) != len(det_group):
+            for ref_id, _, entry in ref_group:
+                entry['coord_verified'] = 'unknown'
+                disputes[ref_id] = None
+            continue
+        refs_sorted = sorted(ref_group, key=lambda r: (r[1][1], r[1][0]))
+        dets_sorted = sorted(det_group, key=lambda d: (d[1][1], d[1][0]))
+        for (ref_id, ref_center, entry), (det, det_center) in zip(refs_sorted, dets_sorted):
+            dx = ref_center[0] - det_center[0]
+            dy = ref_center[1] - det_center[1]
+            if dx * dx + dy * dy <= tol_sq:
+                entry['coord_verified'] = 'true'
+                disputes[ref_id] = None
+            else:
+                entry['coord_verified'] = 'false'
+                disputes[ref_id] = det
+
+    return disputes
+
+
 def dedup_against_atspi(text_detections, atspi_cache, window_offset=(0, 0),
-                        scale=1.0):
+                        scale=1.0, preserve_ids=None):
     """Drop OCR detections whose text is already covered by an AT-SPI2 ref.
 
     An OCR detection is suppressed when its center falls inside a named
@@ -182,6 +286,11 @@ def dedup_against_atspi(text_detections, atspi_cache, window_offset=(0, 0),
             so they share a coord space with screen-absolute OCR bboxes.
         scale: Display scale factor — unused here (both inputs already in
             logical coords) but kept in the signature for future use.
+        preserve_ids: Optional set of ``id()`` values. Detections whose
+            Python id appears in this set are never suppressed, even if
+            they would otherwise be deduped. Used by the coord-verification
+            pass to keep disputed detections visible as ``ref_tN`` so the
+            agent can see both sides of a disagreement.
 
     Returns:
         Filtered list (same shape as text_detections).
@@ -210,8 +319,12 @@ def dedup_against_atspi(text_detections, atspi_cache, window_offset=(0, 0),
     if not named_refs:
         return list(text_detections)
 
+    preserve = preserve_ids or set()
     kept = []
     for det in text_detections:
+        if id(det) in preserve:
+            kept.append(det)
+            continue
         det_norm = normalize_text(det['text'])
         cx, cy = _bbox_center(det['bbox'])
         suppressed = False

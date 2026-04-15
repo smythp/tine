@@ -4,6 +4,8 @@ Processing pipeline:
     raw tree dict → collapse_containers → assign_refs → format_tree → text output
 """
 
+import hashlib
+
 INT_MIN = -2147483648
 
 # Roles that are pure layout wrappers when unnamed — collapse them.
@@ -221,6 +223,41 @@ def format_tree(tree):
     lines = []
     _format_node(tree, 0, lines)
     return '\n'.join(lines)
+
+
+def hash_subtree(tree):
+    """Hash the semantic structure of an AT-SPI2 tree for click verification.
+
+    Walks the tree in DFS order and hashes ``(role, name, sorted(states))``
+    for every node. Intentionally excludes bounding boxes so a window move
+    or scroll doesn't register as a state change — we care about whether
+    the click changed role/name/state, not pixel positions. Used by the
+    click sanity-check layer to detect silent no-op clicks: if the
+    before-click and after-click hashes match, the click probably didn't
+    land where the agent expected.
+
+    Args:
+        tree: Raw tree dict (walk_atspi output shape) or a collapsed tree.
+
+    Returns:
+        Hex SHA-256 digest of the serialized structure.
+    """
+    parts = []
+
+    def walk(node):
+        if not isinstance(node, dict):
+            return
+        role = node.get('role', '')
+        name = node.get('name', '')
+        states = node.get('states', []) or []
+        state_str = ','.join(sorted(str(s) for s in states))
+        parts.append(f'{role}|{name}|{state_str}')
+        for child in node.get('children', []) or []:
+            walk(child)
+
+    walk(tree)
+    serialized = '\n'.join(parts).encode('utf-8', errors='replace')
+    return hashlib.sha256(serialized).hexdigest()
 
 
 def _format_node(node, depth, lines):
