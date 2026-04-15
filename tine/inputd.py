@@ -68,7 +68,6 @@ def _create_uinput():
         ],
         ecodes.EV_KEY: [
             ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
-            ecodes.BTN_TOUCH,
         ] + [code for code in keycodes.values()],
     }
     dev = UInput(capabilities, name='tine-input',

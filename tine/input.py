@@ -4,13 +4,15 @@ All input goes through a single UInput device (tine-input) so the Wayland
 compositor tracks focus consistently. Mouse uses EV_ABS, keyboard/typing
 use EV_KEY with character-to-keycode mapping.
 
-The device is created with INPUT_PROP_DIRECT so libinput classifies it as a
-direct-touch device (like a touchscreen) and maps ABS coordinates to the
-display. Without this property, the device is classified as a joystick and
-ABS events are not mapped to screen positions.
+The device is created with INPUT_PROP_DIRECT so libinput maps ABS coordinates
+to the full display. Button capabilities are BTN_LEFT/RIGHT/MIDDLE only —
+BTN_TOUCH must NOT be present: Firefox's Wayland pointer binding ignores
+events from devices that advertise BTN_TOUCH, so including it silently
+breaks clicks on Firefox (and some other Wayland clients) while leaving
+GTK apps unaffected.
 
 The UInput device is created lazily on first use and cached for the process lifetime.
-Device creation takes ~0.5s for the compositor to recognize it.
+Device creation takes ~2s for the compositor to recognize it.
 """
 
 import time
@@ -178,7 +180,6 @@ def _get_uinput():
         ],
         ecodes.EV_KEY: [
             ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
-            ecodes.BTN_TOUCH,
         ] + [code for code in KEYCODES.values()],
     }
     _uinput_device = UInput(capabilities, name='tine-input',
