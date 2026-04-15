@@ -55,7 +55,11 @@ class TestVerifyAtspiCoordsUnit:
         dets = [_det('Learn more', 579, 459, 80, 20)]
         disputes = ocr_mod.verify_atspi_coords(cache, dets)
         assert cache['ref_40']['coord_verified'] == 'false'
-        assert disputes['ref_40'] is dets[0]
+        assert disputes['ref_40'] is True
+        # Disputed detection is stamped with the ref id it contradicts,
+        # so dedup and disputed_by linking can use the field instead of
+        # Python object identity.
+        assert dets[0]['_disputed_ref_id'] == 'ref_40'
 
     def test_no_ocr_coverage_is_unknown(self):
         cache = {
@@ -96,14 +100,17 @@ class TestVerifyAtspiCoordsUnit:
             _det('Learn more', 400, 100),
             _det('Learn more', 400, 200),
         ]
-        disputes = ocr_mod.verify_atspi_coords(cache, dets)
+        ocr_mod.verify_atspi_coords(cache, dets)
         assert cache['ref_1']['coord_verified'] == 'false'
         assert cache['ref_2']['coord_verified'] == 'false'
         assert cache['ref_3']['coord_verified'] == 'false'
-        # Pairing by (y, x): ref_1 (y=100) ↔ det (y=100) etc.
-        assert disputes['ref_1']['bbox']['y'] == 100
-        assert disputes['ref_2']['bbox']['y'] == 200
-        assert disputes['ref_3']['bbox']['y'] == 300
+        # Pairing by (y, x): ref_1 (y=100) ↔ det (y=100) etc. Read
+        # the stamped field on each det to confirm the pairing, not
+        # the disputes dict (which is now a simple present/absent map).
+        by_y = {d['bbox']['y']: d.get('_disputed_ref_id') for d in dets}
+        assert by_y[100] == 'ref_1'
+        assert by_y[200] == 'ref_2'
+        assert by_y[300] == 'ref_3'
 
     def test_duplicate_names_all_aligned_are_true(self):
         cache = {

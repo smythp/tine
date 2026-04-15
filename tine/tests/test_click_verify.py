@@ -89,6 +89,10 @@ class TestClickVerifyWarning:
     def _install(self, monkeypatch, tmp_path, walk_returns):
         """Wire up the minimum stubs to run ``tine click ref_1`` while
         controlling what the walker returns on each call.
+
+        ``walk_returns`` can contain either tree dicts or Exception
+        instances; exceptions are raised from the fake walker so the
+        pre/post-click error paths can be exercised.
         """
         path = str(tmp_path / 'refs.json')
         _cache_with_ref(path)
@@ -98,7 +102,10 @@ class TestClickVerifyWarning:
         walk_calls = iter(walk_returns)
 
         def fake_walker(app=None):
-            return next(walk_calls)
+            val = next(walk_calls)
+            if isinstance(val, BaseException):
+                raise val
+            return val
 
         monkeypatch.setattr(cli_mod, '_walk_atspi', fake_walker)
         monkeypatch.setattr(cli_mod.time, 'sleep', lambda _s: None)
@@ -138,30 +145,41 @@ class TestClickVerifyWarning:
         err = capsys.readouterr().err
         assert 'click may not have landed' not in err
 
-    def test_walker_failure_is_silent(self, monkeypatch, tmp_path, capsys):
-        """If the walker throws, verification must not leak errors or
-        emit warnings — the click still happens.
+    def test_pre_click_walker_failure_reports_and_continues(
+            self, monkeypatch, tmp_path, capsys):
+        """Broken pre-click walker: we must report the failure (so the
+        user knows the safety layer isn't running) but still complete
+        the click. The "click may not have landed" warning must not
+        fire, because we have no before-hash to compare against.
         """
-        def broken_walker(app=None):
-            raise RuntimeError('walker crashed')
-
-        path = str(tmp_path / 'refs.json')
-        _cache_with_ref(path)
-        monkeypatch.setenv('TINE_REF_CACHE', path)
-        monkeypatch.delenv('TINE_NO_VERIFY_CLICK', raising=False)
-        monkeypatch.setattr(cli_mod, '_walk_atspi', broken_walker)
-        monkeypatch.setattr(tine.input, 'click_ref',
-                            lambda *a, **kw: None)
-        monkeypatch.setattr(
-            tine.screenshot, 'list_windows',
-            lambda: [{'title': 'Calculator', 'wm_class': 'gnome-calculator',
-                      'x': 72, 'y': 32, 'width': 400, 'height': 300,
-                      'focused': True}],
+        self._install(
+            monkeypatch, tmp_path,
+            walk_returns=[RuntimeError('pre-click walker crashed')],
         )
         cli_mod.main(['click', 'ref_1'])
         err = capsys.readouterr().err
+        assert 'click verification skipped' in err
+        assert 'pre-click walker crashed' in err
         assert 'click may not have landed' not in err
-        assert 'walker crashed' not in err
+
+    def test_post_click_walker_failure_reports_and_does_not_warn(
+            self, monkeypatch, tmp_path, capsys):
+        """Broken post-click walker: pre-walk succeeded so we had a
+        before-hash, but after-walk throws. We must report the
+        incomplete verification and not emit a false "tree unchanged"
+        warning.
+        """
+        tree = {'role': 'frame', 'name': 'Calc', 'states': [],
+                'children': []}
+        self._install(
+            monkeypatch, tmp_path,
+            walk_returns=[tree, RuntimeError('post-click walker crashed')],
+        )
+        cli_mod.main(['click', 'ref_1'])
+        err = capsys.readouterr().err
+        assert 'click verification incomplete' in err
+        assert 'post-click walker crashed' in err
+        assert 'click may not have landed' not in err
 
     def test_env_var_disables_verification(self, monkeypatch, tmp_path, capsys):
         """Setting TINE_NO_VERIFY_CLICK=1 must skip both walks entirely."""
@@ -188,6 +206,47 @@ class TestClickVerifyWarning:
         err = capsys.readouterr().err
         assert walk_count == []
         assert 'click may not have landed' not in err
+
+    def test_missing_app_in_cache_skips_verification(
+            self, monkeypatch, tmp_path, capsys):
+        """If the ref cache has no ``_app`` entry (or it's empty),
+        verification must skip entirely rather than falling through to
+        ``_walk_atspi(app='')`` and hashing unrelated windows.
+        """
+        walk_count = []
+
+        def counting_walker(app=None):
+            walk_count.append(app)
+            return {'role': 'frame', 'name': '', 'states': [], 'children': []}
+
+        path = str(tmp_path / 'refs.json')
+        cache = {
+            '_app': '',
+            'ref_1': {
+                'role': 'button',
+                'name': 'Equals',
+                'bbox': {'x': 100, 'y': 100, 'w': 80, 'h': 40,
+                         'coord': 'window'},
+                'actions': ['click'],
+            },
+        }
+        tine.refs.save_ref_cache(cache, path)
+        monkeypatch.setenv('TINE_REF_CACHE', path)
+        monkeypatch.delenv('TINE_NO_VERIFY_CLICK', raising=False)
+        monkeypatch.setattr(cli_mod, '_walk_atspi', counting_walker)
+        monkeypatch.setattr(tine.input, 'click_ref',
+                            lambda *a, **kw: None)
+        monkeypatch.setattr(
+            tine.screenshot, 'list_windows',
+            lambda: [{'title': 'Calculator', 'wm_class': 'gnome-calculator',
+                      'x': 72, 'y': 32, 'width': 400, 'height': 300,
+                      'focused': True}],
+        )
+        cli_mod.main(['click', 'ref_1'])
+        err = capsys.readouterr().err
+        assert walk_count == []
+        assert 'click may not have landed' not in err
+        assert 'click verification' not in err
 
     def test_text_ref_click_skips_verification(self, monkeypatch, tmp_path,
                                                capsys):

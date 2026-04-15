@@ -44,22 +44,41 @@ def _click_verify_enabled():
 
 
 def _verify_click_before(app_name):
-    """Walk AT-SPI2 before the click and return (app, hash) or None on
-    any error. Swallowing errors keeps verification from blocking the
-    click itself when the walker has a transient problem.
+    """Walk AT-SPI2 before the click and return (app, hash) or None when
+    verification can't run.
+
+    Returns None in three situations:
+
+      * verification disabled via ``TINE_NO_VERIFY_CLICK``
+      * no ``_app`` available to scope the walk to — without it,
+        ``_walk_atspi(app='')`` would fall back to walking the whole
+        desktop, which hashes unrelated windows and produces misleading
+        signals. Better to skip quietly
+      * the walker raised. In that case we print the error to stderr so
+        the user knows the safety layer isn't running, but we do not
+        block the click itself
     """
     if not _click_verify_enabled():
+        return None
+    if not app_name:
         return None
     try:
         raw = _walk_atspi(app=app_name)
         return (app_name, tine.tree.hash_subtree(raw))
-    except Exception:
+    except Exception as exc:
+        print(
+            f'warning: click verification skipped — pre-click walker error: {exc}',
+            file=sys.stderr,
+        )
         return None
 
 
 def _verify_click_after(before):
     """Walk AT-SPI2 after the click and warn if the tree hash matches the
     before-hash captured by ``_verify_click_before``.
+
+    Walker errors on the after-walk are reported (not swallowed) so a
+    broken walker can't silently suppress the warning every time.
     """
     if before is None:
         return
@@ -68,13 +87,19 @@ def _verify_click_after(before):
     try:
         raw = _walk_atspi(app=before_app)
         after_hash = tine.tree.hash_subtree(raw)
-    except Exception:
+    except Exception as exc:
+        print(
+            f'warning: click verification incomplete — post-click walker error: {exc}',
+            file=sys.stderr,
+        )
         return
     if after_hash == before_hash:
         print(
             'warning: click may not have landed — AT-SPI2 tree unchanged '
             f'after click (app={before_app!r}). The ref bbox may be wrong '
-            'for this app; try `tine activate` or click via ref_tN / grid.',
+            'for this app; try `tine activate` or click via ref_tN / grid. '
+            'Live-region content (tickers, spinners) can also mask this '
+            'signal — treat as hint, not error.',
             file=sys.stderr,
         )
 

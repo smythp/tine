@@ -56,15 +56,17 @@ def _run_ocr(screenshot_path, ref_cache, scale, app_name):
       1. detect text on the screenshot
       2. ``verify_atspi_coords`` tags every named AT-SPI2 ref in
          ``ref_cache`` with a ``coord_verified`` field (``true`` /
-         ``false`` / ``unknown``) and returns the set of disputed
-         detections — OCR hits whose pixel position disagrees with the
-         corresponding AT-SPI2 ref center
-      3. dedup with those disputed detections preserved, so the agent
-         can see both the AT-SPI2 ref and the OCR detection that
-         contradicts it
+         ``false`` / ``unknown``). As a side effect, each disputed
+         detection gets a ``_disputed_ref_id`` field naming the AT-SPI2
+         ref it contradicts
+      3. dedup, which preserves any detection carrying a
+         ``_disputed_ref_id`` so the agent can see both the AT-SPI2 ref
+         and the OCR detection that contradicts it
       4. assign ``ref_tN`` ids to surviving detections
       5. link ``disputed_by: ref_tN`` on the refs that have a surviving
-         dispute
+         dispute, by reading the stamped field off each surviving
+         detection — no object-identity coupling, robust to detection
+         dicts being copied anywhere in the pipeline
 
     Resolves the window offset from app_name internally so callers don't
     need to compute it.
@@ -81,30 +83,25 @@ def _run_ocr(screenshot_path, ref_cache, scale, app_name):
     window_offset = resolve_window_offset(app_name)
     detections = detect_text(screenshot_path, scale=scale)
 
-    disputes = verify_atspi_coords(
+    verify_atspi_coords(
         ref_cache, detections, window_offset=window_offset,
     )
-    preserve_ids = {id(d) for d in disputes.values() if d is not None}
 
     kept = dedup_against_atspi(
         detections, ref_cache, window_offset=window_offset, scale=scale,
-        preserve_ids=preserve_ids,
     )
     start_index = next_text_ref_index(ref_cache)
     text_refs = assign_text_refs(kept, start_index=start_index)
     ref_cache.update(text_refs)
 
     text_ref_order = list(text_refs.keys())
-    for ref_id, disputed_det in disputes.items():
-        if disputed_det is None:
+    for ref_tid, det in zip(text_ref_order, kept):
+        disputed_ref = det.get('_disputed_ref_id') if isinstance(det, dict) else None
+        if not disputed_ref:
             continue
-        for idx, det in enumerate(kept):
-            if det is disputed_det:
-                if idx < len(text_ref_order):
-                    entry = ref_cache.get(ref_id)
-                    if isinstance(entry, dict):
-                        entry['disputed_by'] = text_ref_order[idx]
-                break
+        entry = ref_cache.get(disputed_ref)
+        if isinstance(entry, dict):
+            entry['disputed_by'] = ref_tid
 
     return text_ref_order
 

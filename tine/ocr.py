@@ -209,11 +209,17 @@ def verify_atspi_coords(atspi_cache, text_detections, window_offset=(0, 0),
         tolerance: Maximum center-to-center distance (pixels) for a
             matched pair to count as ``true``.
 
+    Side effect: each disputed detection also gets a
+    ``_disputed_ref_id`` field set to the AT-SPI2 ref id it disputes.
+    The caller uses that tag (rather than object identity) to link
+    ``ref_N.disputed_by = ref_tN`` after text refs are assigned, which
+    keeps the linkage robust against any future refactor that copies
+    detection dicts through the pipeline.
+
     Returns:
-        Dict mapping ref_N id → the OCR detection object that disputes
-        its position (when coord_verified is ``'false'``), or ``None``
-        when there's no dispute. Lets the caller later resolve the
-        disputed detection to a ``ref_tN`` id once text refs are assigned.
+        Dict mapping ref_N id → ``True`` when a dispute exists, or
+        ``None`` when there's no dispute. The ref id of a dispute can
+        be read from the detection's ``_disputed_ref_id`` field.
     """
     refs_by_name = {}
     for ref_id, entry in atspi_cache.items():
@@ -266,18 +272,24 @@ def verify_atspi_coords(atspi_cache, text_detections, window_offset=(0, 0),
                 disputes[ref_id] = None
             else:
                 entry['coord_verified'] = 'false'
-                disputes[ref_id] = det
+                det['_disputed_ref_id'] = ref_id
+                disputes[ref_id] = True
 
     return disputes
 
 
 def dedup_against_atspi(text_detections, atspi_cache, window_offset=(0, 0),
-                        scale=1.0, preserve_ids=None):
+                        scale=1.0):
     """Drop OCR detections whose text is already covered by an AT-SPI2 ref.
 
     An OCR detection is suppressed when its center falls inside a named
     AT-SPI2 ref whose normalized name matches the OCR text. AT-SPI2 wins
     because it carries real semantics (role, actions, focusable state).
+
+    Detections carrying a ``_disputed_ref_id`` field (stamped upstream by
+    ``verify_atspi_coords``) are always preserved so the agent can see
+    both halves of a coordinate disagreement — the AT-SPI2 ref with its
+    (likely-wrong) bbox and the OCR ref_tN with the real pixel position.
 
     Args:
         text_detections: List from detect_text().
@@ -286,11 +298,6 @@ def dedup_against_atspi(text_detections, atspi_cache, window_offset=(0, 0),
             so they share a coord space with screen-absolute OCR bboxes.
         scale: Display scale factor — unused here (both inputs already in
             logical coords) but kept in the signature for future use.
-        preserve_ids: Optional set of ``id()`` values. Detections whose
-            Python id appears in this set are never suppressed, even if
-            they would otherwise be deduped. Used by the coord-verification
-            pass to keep disputed detections visible as ``ref_tN`` so the
-            agent can see both sides of a disagreement.
 
     Returns:
         Filtered list (same shape as text_detections).
@@ -319,10 +326,9 @@ def dedup_against_atspi(text_detections, atspi_cache, window_offset=(0, 0),
     if not named_refs:
         return list(text_detections)
 
-    preserve = preserve_ids or set()
     kept = []
     for det in text_detections:
-        if id(det) in preserve:
+        if det.get('_disputed_ref_id'):
             kept.append(det)
             continue
         det_norm = normalize_text(det['text'])

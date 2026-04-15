@@ -228,13 +228,16 @@ def format_tree(tree):
 def hash_subtree(tree):
     """Hash the semantic structure of an AT-SPI2 tree for click verification.
 
-    Walks the tree in DFS order and hashes ``(role, name, sorted(states))``
-    for every node. Intentionally excludes bounding boxes so a window move
-    or scroll doesn't register as a state change — we care about whether
-    the click changed role/name/state, not pixel positions. Used by the
-    click sanity-check layer to detect silent no-op clicks: if the
-    before-click and after-click hashes match, the click probably didn't
-    land where the agent expected.
+    Walks the tree in DFS order and hashes ``(depth, role, name,
+    sorted(states))`` for every node. Depth is included so two trees
+    with the same DFS node sequence but different parent/child
+    structure (e.g. ``[A, B]`` as siblings vs ``A → B`` as
+    parent/child) don't collide. Intentionally excludes bounding boxes
+    so a window move or scroll doesn't register as a state change — we
+    care about whether the click changed role/name/state, not pixel
+    positions. Used by the click sanity-check layer to detect silent
+    no-op clicks: if the before-click and after-click hashes match,
+    the click probably didn't land where the agent expected.
 
     Args:
         tree: Raw tree dict (walk_atspi output shape) or a collapsed tree.
@@ -244,18 +247,18 @@ def hash_subtree(tree):
     """
     parts = []
 
-    def walk(node):
+    def walk(node, depth):
         if not isinstance(node, dict):
             return
         role = node.get('role', '')
         name = node.get('name', '')
         states = node.get('states', []) or []
         state_str = ','.join(sorted(str(s) for s in states))
-        parts.append(f'{role}|{name}|{state_str}')
+        parts.append(f'{depth}|{role}|{name}|{state_str}')
         for child in node.get('children', []) or []:
-            walk(child)
+            walk(child, depth + 1)
 
-    walk(tree)
+    walk(tree, 0)
     serialized = '\n'.join(parts).encode('utf-8', errors='replace')
     return hashlib.sha256(serialized).hexdigest()
 

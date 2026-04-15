@@ -215,7 +215,7 @@ Tine is the only one that combines structured reads with portal-free input on Wa
 
 ## Click sanity checks
 
-A1-class silent misses — the click physically lands but nothing interactive was there — are the worst failure mode when an agent drives a CLI, because the agent has no immediate signal that anything went wrong. Tine runs two cheap cross-checks to catch them.
+Silent misses — the click physically lands but nothing interactive was there — are the worst failure mode when an agent drives a CLI, because the agent has no immediate signal that anything went wrong. Tine runs two cross-checks to catch them.
 
 **Coord verification at describe time.** When `tine describe --ocr` runs, every named AT-SPI2 ref is cross-referenced against OCR detections with the same text. Each ref gets a `coord_verified` tag:
 
@@ -225,15 +225,21 @@ A1-class silent misses — the click physically lands but nothing interactive wa
 | `false`   | OCR found the text at a different pixel position. The AT-SPI2 bbox is likely wrong. If a `disputed_by` ref is shown, use that `ref_tN` instead — or fall back to `tine activate`. |
 | `unknown` | No OCR coverage or ambiguous match (duplicate text with mismatched counts). Treat as unverified. |
 
-When one or more refs come back `false` / `unknown`, `tine describe --ocr` prints a **Coord Verification** section listing them so the agent can pick a safer click target.
+When one or more refs come back `false` / `unknown`, `tine describe --ocr` prints a **Coord Verification** section listing them so the agent can pick a safer click target. This check is free — it runs inside the describe pipeline you were going to call anyway.
 
-**Post-click tree hash.** After `tine click ref_N`, tine walks the AT-SPI2 subtree for the focused app again and compares a structural hash (roles + names + states, no bboxes) against the pre-click state. If the hash is unchanged, it emits a stderr warning:
+**Post-click tree hash.** After `tine click ref_N`, tine walks the AT-SPI2 subtree for the focused app again and compares a structural hash (depth + roles + names + states, no bboxes) against the pre-click state. If the hash is unchanged, it emits a stderr warning:
 
 ```
 warning: click may not have landed — AT-SPI2 tree unchanged after click (app='Firefox')
 ```
 
-This trips on silent misses and on genuinely idempotent clicks alike (clicking the same button that's already active). Treat it as a hint, not an error. To disable (e.g. benchmarking or slow-walker apps) set `TINE_NO_VERIFY_CLICK=1`.
+This isn't free: two AT-SPI2 walks plus a 300 ms settle delay. Measured on archgnome, that adds roughly **0.9 s per click on simple apps (Calculator) and ~2.1 s on complex apps (Firefox with a loaded page)**. It's opt-out, not opt-in — silent misses justify the cost for most agent use — but if you're running rapid click sequences (form fill, benchmarks) you can disable with `TINE_NO_VERIFY_CLICK=1`.
+
+Limitations:
+
+- **Best-effort signal, not a guarantee.** Pages with live-region content (tickers, spinners, autoplay) can mutate the tree on their own timer. If the tree changes within the 300 ms settle window, the warning won't fire even when the click was a no-op. Treat the warning as a hint.
+- **Idempotent clicks trip it too.** Clicking an already-focused button, or a button whose action is a no-op in the current state, looks identical to a silent miss from the AT-SPI2 tree's perspective.
+- **ref_N only.** Grid-cell, raw-coordinate, and `ref_tN` clicks don't run the check (the latter because OCR refs are their own source of truth).
 
 ---
 
