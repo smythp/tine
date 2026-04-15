@@ -166,7 +166,7 @@ def _try_daemon(cmd):
 def _get_uinput():
     """Get or create the cached UInput device.
 
-    The device is created once and reused. Creation takes ~0.5s for the
+    The device is created once and reused. Creation takes ~2s for the
     compositor to recognize the new input device.
     """
     global _uinput_device
