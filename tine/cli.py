@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 import tine.describe
 import tine.input
@@ -24,6 +25,83 @@ from tine.window_offset import (
     normalize_app_name as _normalize_app_name,
     resolve_window_offset as _resolve_window_offset,
 )
+
+# Post-click verification: settle delay between the click and the
+# after-walk. Kept short because most UI state transitions (button
+# toggles, focus changes, menu opens) update the AT-SPI2 tree within
+# ~100ms; slower transitions like full Firefox navigation will produce
+# spurious warnings but the brief accepts that as a warning-level
+# signal the agent can filter.
+_CLICK_VERIFY_SETTLE_SEC = 0.3
+
+
+def _click_verify_enabled():
+    """Post-click AT-SPI2 verification is on by default; disable with
+    TINE_NO_VERIFY_CLICK=1 for benchmarking or when running against an
+    app where the tree walk is pathologically slow.
+    """
+    return os.environ.get('TINE_NO_VERIFY_CLICK', '').strip() not in ('1', 'true', 'yes')
+
+
+def _verify_click_before(app_name):
+    """Walk AT-SPI2 before the click and return (app, hash) or None when
+    verification can't run.
+
+    Returns None in three situations:
+
+      * verification disabled via ``TINE_NO_VERIFY_CLICK``
+      * no ``_app`` available to scope the walk to — without it,
+        ``_walk_atspi(app='')`` would fall back to walking the whole
+        desktop, which hashes unrelated windows and produces misleading
+        signals. Better to skip quietly
+      * the walker raised. In that case we print the error to stderr so
+        the user knows the safety layer isn't running, but we do not
+        block the click itself
+    """
+    if not _click_verify_enabled():
+        return None
+    if not app_name:
+        return None
+    try:
+        raw = _walk_atspi(app=app_name)
+        return (app_name, tine.tree.hash_subtree(raw))
+    except Exception as exc:
+        print(
+            f'warning: click verification skipped — pre-click walker error: {exc}',
+            file=sys.stderr,
+        )
+        return None
+
+
+def _verify_click_after(before):
+    """Walk AT-SPI2 after the click and warn if the tree hash matches the
+    before-hash captured by ``_verify_click_before``.
+
+    Walker errors on the after-walk are reported (not swallowed) so a
+    broken walker can't silently suppress the warning every time.
+    """
+    if before is None:
+        return
+    before_app, before_hash = before
+    time.sleep(_CLICK_VERIFY_SETTLE_SEC)
+    try:
+        raw = _walk_atspi(app=before_app)
+        after_hash = tine.tree.hash_subtree(raw)
+    except Exception as exc:
+        print(
+            f'warning: click verification incomplete — post-click walker error: {exc}',
+            file=sys.stderr,
+        )
+        return
+    if after_hash == before_hash:
+        print(
+            'warning: click may not have landed — AT-SPI2 tree unchanged '
+            f'after click (app={before_app!r}). The ref bbox may be wrong '
+            'for this app; try `tine activate` or click via ref_tN / grid. '
+            'Live-region content (tickers, spinners) can also mask this '
+            'signal — treat as hint, not error.',
+            file=sys.stderr,
+        )
 
 
 _ALLOWED_CACHE_DIRS = (
@@ -200,13 +278,18 @@ def _cmd_click(args):
         # AT-SPI2 refs still need the offset resolved.
         if is_text_ref(target):
             offset = (0, 0)
+            verify_before = None
         else:
             app_name = cache.get('_app', '')
             offset = _resolve_window_offset(app_name)
+            # Capture a before-click AT-SPI2 hash so we can warn if the
+            # click lands somewhere that doesn't change the tree at all.
+            verify_before = _verify_click_before(app_name)
         kwargs = {'window_offset': offset, 'button': args.button}
         if args.double:
             kwargs['double'] = True
         tine.input.click_ref(target, cache, **kwargs)
+        _verify_click_after(verify_before)
 
     # Check if target is a grid cell (e.g. B3, AA12)
     elif re.match(r'^[A-Za-z]+\d+$', target):
