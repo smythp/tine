@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Tine Click Probe</title>
+<style>
+  body { background: #111; color: #eee; font: 14px monospace; padding: 20px; }
+  .target { display: block; width: 400px; padding: 12px; margin: 10px 0; font-size: 16px; background: #222; color: #eee; border: 2px solid #666; }
+  .target:focus { border-color: #f80; outline: 3px solid #f80; }
+  #log { white-space: pre-wrap; background: #000; padding: 10px; margin-top: 10px; height: 360px; overflow: auto; border: 1px solid #444; font-size: 11px; }
+  #lastEvent { background: #223; padding: 8px; margin: 10px 0; font-weight: bold; }
+  h2 { margin: 10px 0; }
+  button.btn { font-size: 16px; padding: 12px 20px; margin: 5px; background: #333; color: #fff; border: 1px solid #888; }
+</style>
+</head><body>
+<h2>Probe targets</h2>
+<input class="target" id="in1" placeholder="Plain input (id=in1)">
+<input class="target" id="in2" placeholder="Input wrapped in div (id=in2)">
+<div style="padding:8px; background:#222;"><input class="target" id="in3" placeholder="Input in overlay-like div (id=in3)"></div>
+<button class="btn" id="btn1">Plain button (id=btn1)</button>
+<button class="btn" id="clear">Clear log</button>
+<div id="lastEvent">No events yet</div>
+<div id="log"></div>
+<script>
+const log = document.getElementById('log');
+const lastDiv = document.getElementById('lastEvent');
+let counter = 0;
+function row(evt, target) {
+  counter++;
+  const t = new Date().toISOString().slice(11,23);
+  const cx = evt.clientX, cy = evt.clientY;
+  const tgt = target.id || target.tagName;
+  const line = `${t} #${counter} ${evt.type} tgt=${tgt} cx=${cx} cy=${cy} trusted=${evt.isTrusted} ptype=${evt.pointerType||'-'} btn=${evt.button} pr=${evt.pressure}`;
+  log.textContent = line + '\n' + log.textContent;
+  if (evt.type === 'click' || evt.type === 'pointerdown' || evt.type === 'mousedown') {
+    lastDiv.textContent = line + ' active=' + (document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : 'null');
+    document.title = `TP#${counter} ${evt.type} tgt=${tgt} cx=${cx} cy=${cy} tr=${evt.isTrusted?1:0} pt=${evt.pointerType||'-'}`;
+  }
+}
+const events = ['pointerdown','pointerup','mousedown','mouseup','click','focus','blur','focusin','focusout'];
+['in1','in2','in3','btn1'].forEach(id => {
+  const el = document.getElementById(id);
+  events.forEach(et => el.addEventListener(et, e => row(e, el), true));
+});
+document.getElementById('clear').addEventListener('click', () => { log.textContent = ''; counter = 0; lastDiv.textContent = 'cleared'; document.title = 'Tine Click Probe'; });
+// Document-level capture for events that don't hit named targets
+['pointerdown','mousedown','click'].forEach(et => document.addEventListener(et, e => {
+  if (!e.target.id || e.target.id === 'log' || e.target.id === 'lastEvent') {
+    const tgt = e.target.id || e.target.tagName;
+    row(e, {id: 'DOC:'+tgt});
+  }
+}, true));
+// Also: a pointermove tracker — captures where cursor is when moving
+let moveCounter = 0;
+let lastMove = null;
+document.addEventListener('pointermove', e => {
+  moveCounter++;
+  lastMove = {x: e.clientX, y: e.clientY, sx: e.screenX, sy: e.screenY, t: new Date().toISOString().slice(11,23)};
+  // Only title-update periodically so we don't spam
+}, {passive: true});
+window.getLastMove = () => lastMove;
+window.getMoveCount = () => moveCounter;
+</script>
+</body></html>

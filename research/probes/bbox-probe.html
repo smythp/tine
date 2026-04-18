@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="color-scheme" content="light only">
+<title>BBX</title>
+<style>
+  :root { color-scheme: light only; }
+  html, body { margin: 0; padding: 0; background: #ffffff; color: #000; font: 14px monospace; }
+  .mk { position: absolute; width: 8px; height: 8px; border: 0; }
+  .tgt { position: absolute; width: 140px; height: 40px; background: #e8e8e8; border: 2px solid #000;
+         font: 13px monospace; color: #000; text-align: center; line-height: 36px;
+         text-decoration: none; display: block; box-sizing: border-box; }
+  /* Solid colors for markers, no anti-aliasing/text involved. */
+  .c1 { background: #ff00ff; }  /* magenta */
+  .c2 { background: #7f00ff; }  /* violet */
+  .c3 { background: #00c8ff; }  /* sky blue */
+  .c4 { background: #ff8000; }  /* orange */
+  .c5 { background: #00a000; }  /* dark green */
+  .c6 { background: #c00000; }  /* dark red */
+  .c7 { background: #808000; }  /* olive */
+  #meta { position: absolute; top: 880px; left: 10px; background: #fff; color: #000; padding: 4px;
+          font-size: 11px; max-width: 1260px; }
+</style>
+</head><body>
+<!-- 8x8 CSS-pixel markers at known CSS positions.
+     We invert-proof by using non-primary colors that are unlikely to appear in chrome. -->
+<div class="mk c1" style="left:0px;   top:0px;"   data-at="0,0"></div>
+<div class="mk c2" style="left:100px; top:100px;" data-at="100,100"></div>
+<div class="mk c3" style="left:200px; top:200px;" data-at="200,200"></div>
+<div class="mk c4" style="left:400px; top:400px;" data-at="400,400"></div>
+<div class="mk c5" style="left:700px; top:500px;" data-at="700,500"></div>
+<div class="mk c6" style="left:900px; top:100px;" data-at="900,100"></div>
+<div class="mk c7" style="left:50px;  top:600px;" data-at="50,600"></div>
+
+<!-- Named AT-SPI targets at precise CSS positions. -->
+<a class="tgt" id="tgtA" href="#"                 style="left:20px;   top:20px;">tgtA 20,20</a>
+<a class="tgt" id="tgtB" href="#"                 style="left:300px;  top:140px;">tgtB 300,140</a>
+<a class="tgt" id="tgtC" href="#"                 style="left:500px;  top:280px;">tgtC 500,280</a>
+<button class="tgt" id="tgtD"                     style="left:120px;  top:440px;">tgtD 120,440</button>
+<input  class="tgt" id="tgtE" value="tgtE 600,620" style="left:600px; top:620px;">
+<a class="tgt" id="tgtF" href="#"                 style="left:850px;  top:60px;">tgtF 850,60</a>
+
+<div id="meta">loading…</div>
+<script>
+function report() {
+  const win = {
+    dpr: devicePixelRatio, sx: screenX, sy: screenY,
+    iw: innerWidth, ih: innerHeight, ow: outerWidth, oh: outerHeight,
+    sx0: scrollX, sy0: scrollY,
+  };
+  const tgts = {};
+  ['tgtA','tgtB','tgtC','tgtD','tgtE','tgtF'].forEach(id => {
+    const r = document.getElementById(id).getBoundingClientRect();
+    tgts[id] = [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)];
+  });
+  const m = {win, tgts};
+  document.getElementById('meta').textContent = JSON.stringify(m);
+  // Compact title with one tgt's BCR so we can read via `tine windows`.
+  const a = tgts.tgtA;
+  document.title = `BBX win=${win.iw}x${win.ih} sx=${win.sx} sy=${win.sy} scr=${win.sx0},${win.sy0} tgtA=${a[0]},${a[1]},${a[2]},${a[3]}`;
+  // Also expose on window for console reads.
+  window.__bbx = m;
+}
+report();
+addEventListener('resize', report);
+addEventListener('scroll', report);
+// Click echo
+let n = 0;
+['click','pointerdown'].forEach(t => document.addEventListener(t, e => {
+  n++;
+  const tgt = e.target.id || e.target.tagName;
+  document.title = `CLK#${n} tgt=${tgt} cx=${e.clientX} cy=${e.clientY} sx=${e.screenX} sy=${e.screenY}`;
+}, true));
+</script>
+</body></html>
