@@ -1,7 +1,12 @@
 """Persistent evdev input daemon for tine.
 
-Keeps a UInput device alive across CLI invocations, eliminating the 2s
+Keeps the UInput devices alive across CLI invocations, eliminating the 2s
 compositor warmup per command. Listens on a Unix socket for JSON commands.
+
+The daemon owns two uinput devices (pointer + keyboard) matching the
+split-device shape in tine/input.py. See that module for the rationale
+behind the split. Commands dispatch to the pointer device (move/click)
+or the keyboard device (type/key) by action.
 
 Protocol: newline-delimited JSON over Unix stream socket.
   Request:  {"action": "click", "x": 100, "y": 200, "button": "left"}
@@ -22,7 +27,7 @@ import selectors
 import sys
 import time
 
-# These are imported lazily in _create_uinput() so tests can mock them,
+# These are imported lazily in _create_devices() so tests can mock them,
 # but we keep the top-level import for type checking / IDE support.
 import evdev
 from evdev import UInput, ecodes, AbsInfo
@@ -44,7 +49,7 @@ def _pid_path():
 
 
 # ---------------------------------------------------------------------------
-# UInput device creation (same capabilities as input.py _get_uinput)
+# UInput device creation (pointer + keyboard, same shape as tine.input)
 # ---------------------------------------------------------------------------
 
 ABS_MAX = 65535
@@ -58,23 +63,43 @@ def _get_input_constants():
     return KEYCODES, CHAR_MAP, BUTTON_CODES, MODIFIER_NAMES, config['physical_width'], config['physical_height']
 
 
-def _create_uinput():
-    """Create the UInput device with same capabilities as tine.input._get_uinput."""
+def _create_devices():
+    """Create the pointer + keyboard UInput devices.
+
+    Mirrors tine.input's split-device design: a pure absolute pointer
+    (ABS + mouse buttons + INPUT_PROP_DIRECT) and a pure keyboard (EV_KEY
+    with keycodes). Combining both on one device triggers libinput's
+    cap:kp classification and causes EV_ABS motion to be dropped.
+    """
+    from tine.input import (
+        POINTER_VENDOR, POINTER_PRODUCT,
+        KEYBOARD_VENDOR, KEYBOARD_PRODUCT,
+    )
     keycodes, _, _, _, _, _ = _get_input_constants()
-    capabilities = {
+
+    pointer_caps = {
         ecodes.EV_ABS: [
             (ecodes.ABS_X, AbsInfo(0, 0, ABS_MAX, 0, 0, 0)),
             (ecodes.ABS_Y, AbsInfo(0, 0, ABS_MAX, 0, 0, 0)),
         ],
-        ecodes.EV_KEY: [
-            ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
-        ] + [code for code in keycodes.values()],
+        ecodes.EV_KEY: [ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE],
     }
-    dev = UInput(capabilities, name='tine-input',
-                 input_props=[ecodes.INPUT_PROP_DIRECT])
-    # Give compositor time to recognize the device on first creation
+    keyboard_caps = {
+        ecodes.EV_KEY: [code for code in keycodes.values()],
+    }
+
+    pointer = UInput(
+        pointer_caps, name='tine-pointer',
+        vendor=POINTER_VENDOR, product=POINTER_PRODUCT, version=1,
+        input_props=[ecodes.INPUT_PROP_DIRECT],
+    )
+    keyboard = UInput(
+        keyboard_caps, name='tine-keyboard',
+        vendor=KEYBOARD_VENDOR, product=KEYBOARD_PRODUCT, version=1,
+    )
+    # Single warm-up for both — compositor registers them in parallel.
     time.sleep(2.0)
-    return dev
+    return pointer, keyboard
 
 
 # ---------------------------------------------------------------------------
@@ -87,17 +112,19 @@ def _physical_to_abs(phys_x, phys_y, physical_width, physical_height):
     return abs_x, abs_y
 
 
-def _handle_move(dev, cmd):
+def _handle_move(devices, cmd):
+    pointer, _ = devices
     _, _, _, _, physical_width, physical_height = _get_input_constants()
     x, y = int(cmd['x']), int(cmd['y'])
     abs_x, abs_y = _physical_to_abs(x, y, physical_width, physical_height)
-    dev.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
-    dev.write(ecodes.EV_ABS, ecodes.ABS_Y, abs_y)
-    dev.syn()
+    pointer.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
+    pointer.write(ecodes.EV_ABS, ecodes.ABS_Y, abs_y)
+    pointer.syn()
     return {'ok': True}
 
 
-def _handle_click(dev, cmd):
+def _handle_click(devices, cmd):
+    pointer, _ = devices
     _, _, button_codes, _, physical_width, physical_height = _get_input_constants()
     x, y = int(cmd['x']), int(cmd['y'])
     button = cmd.get('button', 'left')
@@ -108,28 +135,29 @@ def _handle_click(dev, cmd):
 
     # Move first
     abs_x, abs_y = _physical_to_abs(x, y, physical_width, physical_height)
-    dev.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
-    dev.write(ecodes.EV_ABS, ecodes.ABS_Y, abs_y)
-    dev.syn()
+    pointer.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
+    pointer.write(ecodes.EV_ABS, ecodes.ABS_Y, abs_y)
+    pointer.syn()
     time.sleep(0.1)
 
     btn_code = button_codes[button]
-    dev.write(ecodes.EV_KEY, btn_code, 1)
-    dev.syn()
-    dev.write(ecodes.EV_KEY, btn_code, 0)
-    dev.syn()
+    pointer.write(ecodes.EV_KEY, btn_code, 1)
+    pointer.syn()
+    pointer.write(ecodes.EV_KEY, btn_code, 0)
+    pointer.syn()
 
     if double:
         time.sleep(0.05)
-        dev.write(ecodes.EV_KEY, btn_code, 1)
-        dev.syn()
-        dev.write(ecodes.EV_KEY, btn_code, 0)
-        dev.syn()
+        pointer.write(ecodes.EV_KEY, btn_code, 1)
+        pointer.syn()
+        pointer.write(ecodes.EV_KEY, btn_code, 0)
+        pointer.syn()
 
     return {'ok': True}
 
 
-def _handle_key(dev, cmd):
+def _handle_key(devices, cmd):
+    _, keyboard = devices
     keycodes, _, _, modifier_names, _, _ = _get_input_constants()
     combo_str = cmd.get('combo', '')
     if not combo_str:
@@ -152,19 +180,20 @@ def _handle_key(dev, cmd):
             keys.append(keycodes[part])
 
     for code in modifiers:
-        dev.write(ecodes.EV_KEY, code, 1)
+        keyboard.write(ecodes.EV_KEY, code, 1)
     for code in keys:
-        dev.write(ecodes.EV_KEY, code, 1)
+        keyboard.write(ecodes.EV_KEY, code, 1)
     for code in reversed(keys):
-        dev.write(ecodes.EV_KEY, code, 0)
+        keyboard.write(ecodes.EV_KEY, code, 0)
     for code in reversed(modifiers):
-        dev.write(ecodes.EV_KEY, code, 0)
-    dev.syn()
+        keyboard.write(ecodes.EV_KEY, code, 0)
+    keyboard.syn()
 
     return {'ok': True}
 
 
-def _handle_type(dev, cmd):
+def _handle_type(devices, cmd):
+    _, keyboard = devices
     keycodes, char_map, _, _, _, _ = _get_input_constants()
     text = cmd.get('text', '')
     if not isinstance(text, str):
@@ -181,17 +210,17 @@ def _handle_type(dev, cmd):
         keycode, needs_shift = char_map[char]
 
         if needs_shift:
-            dev.write(ecodes.EV_KEY, shift_code, 1)
-            dev.syn()
+            keyboard.write(ecodes.EV_KEY, shift_code, 1)
+            keyboard.syn()
 
-        dev.write(ecodes.EV_KEY, keycode, 1)
-        dev.syn()
-        dev.write(ecodes.EV_KEY, keycode, 0)
-        dev.syn()
+        keyboard.write(ecodes.EV_KEY, keycode, 1)
+        keyboard.syn()
+        keyboard.write(ecodes.EV_KEY, keycode, 0)
+        keyboard.syn()
 
         if needs_shift:
-            dev.write(ecodes.EV_KEY, shift_code, 0)
-            dev.syn()
+            keyboard.write(ecodes.EV_KEY, shift_code, 0)
+            keyboard.syn()
 
         if delay_s > 0:
             time.sleep(delay_s)
@@ -224,11 +253,12 @@ def _cleanup(sock_path, pid_path, server_sock):
             pass
 
 
-def run_daemon(create_uinput=None, sock_path=None, timeout=None):
+def run_daemon(create_devices=None, sock_path=None, timeout=None):
     """Run the input daemon. Blocks until shutdown or inactivity timeout.
 
     Args:
-        create_uinput: Callable that returns a UInput-like device. Defaults to _create_uinput.
+        create_devices: Callable that returns a (pointer, keyboard) tuple of
+            UInput-like devices. Defaults to _create_devices.
         sock_path: Override socket path (for testing).
         timeout: Inactivity timeout in seconds. Defaults to TINE_INPUTD_TIMEOUT env or 300.
     """
@@ -240,8 +270,8 @@ def run_daemon(create_uinput=None, sock_path=None, timeout=None):
     if timeout is None:
         timeout = int(os.environ.get('TINE_INPUTD_TIMEOUT', '300'))
 
-    if create_uinput is None:
-        create_uinput = _create_uinput
+    if create_devices is None:
+        create_devices = _create_devices
 
     # Clean up stale socket
     if os.path.exists(sock_path):
@@ -256,8 +286,8 @@ def run_daemon(create_uinput=None, sock_path=None, timeout=None):
                 pass  # Stale PID, clean up
         os.unlink(sock_path)
 
-    # Create UInput device
-    dev = create_uinput()
+    # Create UInput devices (pointer, keyboard)
+    devices = create_devices()
 
     # Create Unix socket
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -303,14 +333,14 @@ def run_daemon(create_uinput=None, sock_path=None, timeout=None):
         for key, mask in events:
             if key.fileobj is server:
                 conn, _ = server.accept()
-                _handle_connection(conn, dev, shutdown_flag)
+                _handle_connection(conn, devices, shutdown_flag)
                 last_activity = time.monotonic()
 
     # Clean exit (timeout or shutdown)
     cleanup_handler()
 
 
-def _handle_connection(conn, dev, shutdown_flag):
+def _handle_connection(conn, devices, shutdown_flag):
     """Handle a single client connection. Reads one JSON line, responds, closes."""
     try:
         conn.settimeout(5.0)
@@ -344,7 +374,7 @@ def _handle_connection(conn, dev, shutdown_flag):
             return
         elif action in HANDLERS:
             try:
-                response = HANDLERS[action](dev, cmd)
+                response = HANDLERS[action](devices, cmd)
             except Exception as e:
                 response = {'ok': False, 'error': str(e)}
         else:

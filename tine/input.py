@@ -1,18 +1,32 @@
 """Input injection via python-evdev (uinput) for mouse, keyboard, and typing.
 
-All input goes through a single UInput device (tine-input) so the Wayland
-compositor tracks focus consistently. Mouse uses EV_ABS, keyboard/typing
-use EV_KEY with character-to-keycode mapping.
+Input goes through two separate UInput devices:
 
-The device is created with INPUT_PROP_DIRECT so libinput maps ABS coordinates
-to the full display. Button capabilities are BTN_LEFT/RIGHT/MIDDLE only —
-BTN_TOUCH must NOT be present: Firefox's Wayland pointer binding ignores
-events from devices that advertise BTN_TOUCH, so including it silently
-breaks clicks on Firefox (and some other Wayland clients) while leaving
-GTK apps unaffected.
+  tine-pointer  — EV_ABS (ABS_X/Y) + BTN_LEFT/RIGHT/MIDDLE + INPUT_PROP_DIRECT
+  tine-keyboard — EV_KEY with keyboard keycodes only
 
-The UInput device is created lazily on first use and cached for the process lifetime.
-Device creation takes ~2s for the compositor to recognize it.
+The split is required because libinput classifies a single device that has
+both keyboard keys and an absolute pointer as cap:kp (keyboard + pointer)
+and then silently drops all EV_ABS motion events — pointer devices are
+expected to emit EV_REL (relative) motion. The symptom was: clicks would
+register at whatever position the cursor happened to be at, never where
+the caller asked, because the ABS_X/ABS_Y writes were discarded before
+reaching wl_pointer. See finding-20260417-k7j5.
+
+Both devices also use a unique vendor/product ID (0xFEED:0x7001 and
+0xFEED:0x7002) rather than evdev's default 0x0001:0x0001. The default
+collides with other common userspace uinput devices, which libinput groups
+together and then routes pointer events through whichever device it picked
+as the group's pointer aspect — often not ours.
+
+BTN_TOUCH must NOT appear on either device: Firefox's Wayland pointer
+binding ignores events from devices that advertise BTN_TOUCH because
+libinput's internal dispatch routes them as wl_touch rather than wl_pointer.
+See brief-20260415-6yjt and finding-20260414-0y45.
+
+Devices are created lazily on first use and cached for the process lifetime.
+Creation blocks ~2s for the compositor to recognize them (both warm up in
+parallel to amortize the delay).
 """
 
 import time
@@ -25,6 +39,15 @@ from tine.refs import bbox_center, load_ref_cache
 
 # Absolute axis range — uinput maps [0, ABS_MAX] to the full screen
 ABS_MAX = 65535
+
+# Unique vendor/product IDs so libinput does not group tine's devices
+# with other virtual uinput devices that default to 0x0001:0x0001.
+# The IDs are arbitrary but kept stable so users and tests can identify
+# them. 0xFEED is obviously not a real USB vendor, which is the point.
+POINTER_VENDOR = 0xFEED
+POINTER_PRODUCT = 0x7001
+KEYBOARD_VENDOR = 0xFEED
+KEYBOARD_PRODUCT = 0x7002
 
 # Button mapping for evdev
 BUTTON_CODES = {
@@ -128,8 +151,11 @@ for _shifted_char, _base_name in SHIFT_CHARS.items():
 MODIFIER_NAMES = {'ctrl', 'lctrl', 'rctrl', 'shift', 'lshift', 'rshift',
                    'alt', 'lalt', 'ralt', 'super', 'meta'}
 
-# Cached UInput device — created lazily on first use
-_uinput_device = None
+# Cached UInput devices — created lazily on first use.
+# Split into pointer (ABS + mouse buttons) and keyboard (keys) devices so
+# libinput classifies each cleanly. See module docstring.
+_pointer_device = None
+_keyboard_device = None
 
 # Whether to try the daemon for input commands. Set to False to skip daemon.
 _use_daemon = True
@@ -163,32 +189,71 @@ def _try_daemon(cmd):
         return None
 
 
-def _get_uinput():
-    """Get or create the cached UInput device.
+def _pointer_capabilities():
+    """Capability dict for the pointer UInput device.
 
-    The device is created once and reused. Creation takes ~2s for the
-    compositor to recognize the new input device.
+    Pure absolute pointer: ABS_X/ABS_Y + BTN_LEFT/RIGHT/MIDDLE. No keyboard
+    keys — combining them on one device trips libinput's cap:kp classification
+    and EV_ABS motion is silently dropped.
     """
-    global _uinput_device
-    if _uinput_device is not None:
-        return _uinput_device
-
-    capabilities = {
+    return {
         ecodes.EV_ABS: [
             (ecodes.ABS_X, AbsInfo(0, 0, ABS_MAX, 0, 0, 0)),
             (ecodes.ABS_Y, AbsInfo(0, 0, ABS_MAX, 0, 0, 0)),
         ],
-        ecodes.EV_KEY: [
-            ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE,
-        ] + [code for code in KEYCODES.values()],
+        ecodes.EV_KEY: [ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE],
     }
-    _uinput_device = UInput(capabilities, name='tine-input',
-                            input_props=[ecodes.INPUT_PROP_DIRECT])
-    # Give compositor time to recognize the new device.
+
+
+def _keyboard_capabilities():
+    """Capability dict for the keyboard UInput device.
+
+    Pure keyboard: only EV_KEY with the keycodes tine types. No BTN_* keys,
+    no axes, no INPUT_PROP_DIRECT.
+    """
+    return {
+        ecodes.EV_KEY: [code for code in KEYCODES.values()],
+    }
+
+
+def _ensure_devices():
+    """Create both uinput devices if not yet cached.
+
+    Both devices are created before the warm-up sleep so the 2s wait
+    covers both in parallel instead of being paid twice.
+    """
+    global _pointer_device, _keyboard_device
+    if _pointer_device is not None and _keyboard_device is not None:
+        return
+
+    if _pointer_device is None:
+        _pointer_device = UInput(
+            _pointer_capabilities(), name='tine-pointer',
+            vendor=POINTER_VENDOR, product=POINTER_PRODUCT, version=1,
+            input_props=[ecodes.INPUT_PROP_DIRECT],
+        )
+    if _keyboard_device is None:
+        _keyboard_device = UInput(
+            _keyboard_capabilities(), name='tine-keyboard',
+            vendor=KEYBOARD_VENDOR, product=KEYBOARD_PRODUCT, version=1,
+        )
+
+    # Give the compositor time to recognize the new devices.
     # Mutter on GNOME 49 Wayland needs ~2s to register a new uinput device
-    # via libinput. Shorter delays are unreliable — clicks silently go nowhere.
+    # via libinput. Shorter delays are unreliable — events silently go nowhere.
     time.sleep(2.0)
-    return _uinput_device
+
+
+def _get_pointer_uinput():
+    """Return the cached pointer UInput device, creating it on first use."""
+    _ensure_devices()
+    return _pointer_device
+
+
+def _get_keyboard_uinput():
+    """Return the cached keyboard UInput device, creating it on first use."""
+    _ensure_devices()
+    return _keyboard_device
 
 
 def _physical_to_abs(phys_x, phys_y):
@@ -232,7 +297,7 @@ def move(x, y):
         return
 
     abs_x, abs_y = _physical_to_abs(x, y)
-    ui = _get_uinput()
+    ui = _get_pointer_uinput()
     ui.write(ecodes.EV_ABS, ecodes.ABS_X, abs_x)
     ui.write(ecodes.EV_ABS, ecodes.ABS_Y, abs_y)
     ui.syn()
@@ -269,7 +334,7 @@ def click(x, y, button='left', double=False):
     # position. 100ms is enough for Mutter on GNOME 49 Wayland.
     time.sleep(0.1)
 
-    ui = _get_uinput()
+    ui = _get_pointer_uinput()
     btn_code = BUTTON_CODES[button]
 
     # Press and release
@@ -373,7 +438,7 @@ def type_text(text, delay_ms=None):
         return
 
     delay_s = delay_ms / 1000.0
-    ui = _get_uinput()
+    ui = _get_keyboard_uinput()
     shift_code = KEYCODES['shift']
 
     for char in text:
@@ -446,7 +511,7 @@ def key_combo(combo_str):
         else:
             keys.append(KEYCODES[part])
 
-    ui = _get_uinput()
+    ui = _get_keyboard_uinput()
 
     # Press modifiers, press keys, release keys (reverse), release modifiers (reverse)
     for code in modifiers:

@@ -45,17 +45,23 @@ class _FakeUInput:
 
 
 def _patch_uinput():
-    """Return a patch context manager that replaces _get_uinput with a FakeUInput.
+    """Return a patch context manager that replaces the split pointer/keyboard
+    devices with a single FakeUInput.
 
-    Also disables the input daemon so tests use the direct UInput path.
+    Both accessors return the same fake so tests that don't care about the
+    split can assert on one aggregated event stream. Also disables the input
+    daemon so tests use the direct UInput path.
     """
     fake = _FakeUInput()
-    # Stack both patches so the daemon path is skipped in tests
+    # Stack the patches so the daemon path is skipped in tests
     from contextlib import ExitStack
     class _CombinedPatch:
         def __enter__(self):
             self._stack = ExitStack()
-            self._stack.enter_context(patch('tine.input._get_uinput', return_value=fake))
+            self._stack.enter_context(
+                patch('tine.input._get_pointer_uinput', return_value=fake))
+            self._stack.enter_context(
+                patch('tine.input._get_keyboard_uinput', return_value=fake))
             self._stack.enter_context(patch('tine.input._use_daemon', False))
             return self
         def __exit__(self, *exc):
