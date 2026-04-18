@@ -104,6 +104,31 @@ def _verify_click_after(before):
         )
 
 
+_GRID_DIMS_RE = re.compile(r'^\s*(\d+)\s*[xX]\s*(\d+)\s*$')
+
+
+def _parse_grid_dims(spec):
+    """Parse a ``COLSxROWS`` grid spec into a ``(cols, rows)`` tuple.
+
+    Rejects malformed input with a clear message — agents pass this verbatim
+    from prompt scaffolding so an opaque parse error costs a round trip.
+    """
+    if not isinstance(spec, str):
+        raise ValueError(f'--grid expects COLSxROWS (e.g. 5x3), got {spec!r}')
+    m = _GRID_DIMS_RE.match(spec)
+    if not m:
+        raise ValueError(
+            f'--grid expects COLSxROWS (e.g. 5x3), got {spec!r}'
+        )
+    cols = int(m.group(1))
+    rows = int(m.group(2))
+    if cols < 1 or rows < 1:
+        raise ValueError(
+            f'--grid dimensions must be >= 1, got {cols}x{rows}'
+        )
+    return cols, rows
+
+
 _ALLOWED_CACHE_DIRS = (
     '/tmp',
     os.path.expanduser('~/.cache/tine'),
@@ -219,8 +244,13 @@ def _cmd_screenshot(args):
 
         tine.screenshot.annotate(path, adjusted, scale=args.scale)
 
-    if args.grid:
-        tine.screenshot.grid_overlay(path, grid_size=args.grid_size)
+    if args.grid is not None:
+        try:
+            cols, rows = _parse_grid_dims(args.grid)
+        except ValueError as e:
+            print(f'Error: {e}', file=sys.stderr)
+            sys.exit(1)
+        tine.screenshot.grid_overlay(path, cols=cols, rows=rows)
 
     if getattr(args, 'ocr', False):
         from tine.ocr import (
@@ -294,7 +324,17 @@ def _cmd_click(args):
     # Check if target is a grid cell (e.g. B3, AA12)
     elif re.match(r'^[A-Za-z]+\d+$', target):
         try:
-            x, y = tine.screenshot.grid_cell_center(target, grid_size=args.grid_size)
+            cols, rows = _parse_grid_dims(args.grid)
+        except ValueError as e:
+            print(f'Error: {e}', file=sys.stderr)
+            sys.exit(1)
+        config = get_display_config()
+        width = config['physical_width']
+        height = config['physical_height']
+        try:
+            x, y = tine.screenshot.grid_cell_center(
+                target, width, height, cols=cols, rows=rows,
+            )
         except ValueError as e:
             print(f'Error: {e}', file=sys.stderr)
             sys.exit(1)
@@ -318,19 +358,35 @@ def _cmd_click(args):
 def _cmd_target(args):
     """Handle 'target' subcommand — crosshair + 3x3 sub-grid for click refinement."""
     position = args.position
-    grid_size = args.grid_size
-    region_size = args.size if args.size is not None else grid_size
 
     # Resolve position to (x, y) pixel coordinates
     if re.match(r'^-?\d+,-?\d+$', position, re.ASCII):
         parts = position.split(',')
         x, y = int(parts[0]), int(parts[1])
+        # region_size default for coord positions: a fixed fallback that's
+        # roughly cell-sized on a 5x3 at 1920x1080.
+        region_size = args.size if args.size is not None else 150
     elif re.match(r'^[A-Za-z]+\d+$', position):
         try:
-            x, y = tine.screenshot.grid_cell_center(position, grid_size=grid_size)
+            cols, rows = _parse_grid_dims(args.grid)
         except ValueError as e:
             print(f'Error: {e}', file=sys.stderr)
             sys.exit(1)
+        config = get_display_config()
+        width = config['physical_width']
+        height = config['physical_height']
+        try:
+            x, y = tine.screenshot.grid_cell_center(
+                position, width, height, cols=cols, rows=rows,
+            )
+        except ValueError as e:
+            print(f'Error: {e}', file=sys.stderr)
+            sys.exit(1)
+        # Match region size to the resolved cell so the 3x3 sub-grid maps
+        # cleanly onto the drawn cell when no explicit --size is given.
+        cell_w = width // cols
+        cell_h = height // rows
+        region_size = args.size if args.size is not None else min(cell_w, cell_h)
     else:
         print(f'Error: "{position}" is not a valid grid cell (e.g. E5) or coordinates (x,y)',
               file=sys.stderr)
@@ -553,10 +609,11 @@ def main(argv=None):
     ss_parser = subparsers.add_parser('screenshot', help='Capture screenshot')
     ss_parser.add_argument('--annotate', action='store_true',
                            help='Add Set-of-Mark overlays')
-    ss_parser.add_argument('--grid', action='store_true',
-                           help='Add labeled coordinate grid overlay')
-    ss_parser.add_argument('--grid-size', type=int, default=450,
-                           help='Grid spacing in physical pixels (default 450)')
+    ss_parser.add_argument('--grid', nargs='?', const='5x3', default=None,
+                           metavar='COLSxROWS',
+                           help='Add labeled coordinate grid overlay. '
+                                'Optional COLSxROWS (default 5x3) sets the '
+                                'grid dimensions; every cell is fully on-screen.')
     ss_parser.add_argument('--scale', type=float, default=_default_scale,
                            help='Display scale factor')
     ss_parser.add_argument('--ocr', action='store_true',
@@ -573,8 +630,9 @@ def main(argv=None):
                               help='Mouse button: left, right, middle')
     click_parser.add_argument('--double', action='store_true',
                               help='Double click')
-    click_parser.add_argument('--grid-size', type=int, default=450,
-                              help='Grid spacing in physical pixels (default 450)')
+    click_parser.add_argument('--grid', default='5x3', metavar='COLSxROWS',
+                              help='Grid dimensions for letter-cell targets '
+                                   '(default 5x3, matches screenshot --grid)')
 
     # target
     target_parser = subparsers.add_parser('target',
@@ -585,9 +643,11 @@ def main(argv=None):
     target_parser.add_argument('--refine', action='store_true',
                                help='After clicking, show new 3x3 at clicked position')
     target_parser.add_argument('--size', type=int, default=None,
-                               help='Region size in pixels (default: grid-size)')
-    target_parser.add_argument('--grid-size', type=int, default=450,
-                               help='Grid spacing in physical pixels (default 450)')
+                               help='Region size in pixels (default: cell size '
+                                    'for grid-cell positions, 150 for x,y)')
+    target_parser.add_argument('--grid', default='5x3', metavar='COLSxROWS',
+                               help='Grid dimensions for letter-cell positions '
+                                    '(default 5x3, matches screenshot --grid)')
     target_parser.add_argument('--output', '-o', default=None,
                                help='Output path for screenshot PNG')
 

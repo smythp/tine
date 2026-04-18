@@ -108,8 +108,8 @@ gnome-extensions enable ocr-screenshot@local
 ```bash
 tine describe                 # full desktop context (screenshot + a11y tree)
 tine windows                  # list open windows
-tine screenshot --grid        # overlay a labeled grid (A1..Z26)
-tine click B4                 # click center of grid cell B4
+tine screenshot --grid        # overlay a labeled 5x3 grid (A1..E3)
+tine click B3                 # click center of grid cell B3
 tine focus Firefox
 tine type "https://news.ycombinator.com"
 tine key Return
@@ -127,7 +127,8 @@ If all five commands run clean, you're done — hand the CLI to an agent and let
 | `tine tree --app Firefox` | Scope the walk to a single app.                              |
 | `tine screenshot`    | Full-screen capture via the GNOME Shell extension.                |
 | `tine screenshot --annotate` | Overlay Set-of-Mark boxes on known a11y elements.         |
-| `tine screenshot --grid`     | Overlay a labeled coordinate grid for sparse-tree apps.   |
+| `tine screenshot --grid`     | Overlay a labeled 5x3 coordinate grid (yellow hazard-tape lines, corner badges) for sparse-tree apps. |
+| `tine screenshot --grid 10x6`| Denser grid (`COLSxROWS`). Cells are always fully on-screen — no offscreen dead zones. |
 | `tine screenshot --ocr`      | Run OCR, add `ref_tN` entries for detected text regions.  |
 | `tine describe --ocr`        | `describe` plus OCR text refs (needs `[ocr]` extra).      |
 | `tine click ref_3`   | Click the center of a cached a11y ref's bounding box.             |

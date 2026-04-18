@@ -28,7 +28,8 @@ tine tree                      # AT-SPI2 tree with element refs
 tine tree --app Firefox        # scoped to one app
 tine screenshot                # full screen capture via extension
 tine screenshot --annotate     # Set-of-Mark overlays
-tine screenshot --grid         # labeled coordinate grid (A1, B3, ...)
+tine screenshot --grid         # labeled coordinate grid (default 5x3: A1..E3)
+tine screenshot --grid 10x6    # denser grid — cols x rows
 tine screenshot --annotate --grid
 tine screenshot --ocr          # OCR text detection (ref_tN)
 tine describe --ocr            # include OCR text refs in describe output
@@ -49,7 +50,7 @@ tine describe                  # screenshot + tree → combined context for agen
 - **CLI, not MCP.** Agents call it via shell. Simpler, more debuggable, composable. Works from any session.
 - **Hybrid reads.** AT-SPI2 tree as primary, vision as fallback. Neither alone is good enough.
 - **Ref system.** Short IDs (`ref_1`, `ref_2`, ...) assigned to AT-SPI elements. `click ref_3` resolves to bounding box center. Refs cached between calls.
-- **Grid system.** When AT-SPI2 trees are sparse (shadow DOM, Chrome, most Electron apps), `screenshot --grid` overlays a labeled coordinate grid. Agents pick cells (B3, E5) and `click B3` resolves to cell center.
+- **Grid system.** When AT-SPI2 trees are sparse (shadow DOM, Chrome, most Electron apps), `screenshot --grid` overlays a labeled coordinate grid. The grid is **percentage-based** — `--grid COLSxROWS` (default `5x3`) divides the whole screen into equal cells. Every cell is fully on-screen by construction, so `click B3` always lands at a valid pixel regardless of resolution. Lines are drawn as a black-casing + yellow-core hazard-tape stack for visibility on any background, and every cell carries a yellow corner badge with bold black text. Agents pick cells (`A1`..`E3` on the default grid) and `click B3` resolves to the center of the drawn cell, looking up screen dimensions via `tine.display.get_display_config()` (env-var override or Mutter D-Bus) at resolve time.
 - **Lowest practical level.** python-evdev/uinput for input (no portal consent). GNOME extension for screenshots and focus (no portal permission prompts). AT-SPI2 via D-Bus (standard accessibility, no special permissions).
 - **Target: GNOME Shell 49 Wayland on Linux.** Other compositors out of scope for v1.
 - **Click sanity-check layer.** `tine describe --ocr` tags every named AT-SPI2 ref with `coord_verified` (`true`/`false`/`unknown`) by cross-referencing OCR detections. A `false` tag means the AT-SPI2 bbox disagrees with the real pixel position of the matching text; the ref's `disputed_by` field points at the `ref_tN` you should use instead when present. `tine click ref_N` also does a before/after AT-SPI2 tree hash and emits a stderr warning when the click leaves the focused-app subtree unchanged. Disable with `TINE_NO_VERIFY_CLICK=1` if the walker is pathologically slow on a target app.

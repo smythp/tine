@@ -199,22 +199,46 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
     return output_path
 
 
-def grid_overlay(image_path, grid_size=100, output_path=None):
-    """Draw a labeled coordinate grid on a screenshot.
+def _load_bold_font(size):
+    """Load DejaVu Sans Bold at the requested point size, or the PIL default."""
+    for path in (
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+    ):
+        try:
+            return ImageFont.truetype(path, size)
+        except (OSError, IOError):
+            continue
+    return ImageFont.load_default()
 
-    Draws semi-transparent grid lines at regular intervals with column labels
-    (A, B, C, ...) along the top and row labels (1, 2, 3, ...) along the left.
+
+def grid_overlay(image_path, cols=5, rows=3, output_path=None):
+    """Draw a percentage-based labeled coordinate grid on a screenshot.
+
+    The image is divided into COLS x ROWS equal cells (sub-pixel variance
+    is hidden by rounding). Every cell is fully on-screen by construction,
+    so click targets derived from cell labels never land offscreen.
+
+    Lines are drawn as a hazard-tape stack — a 14 px black casing under a
+    10 px yellow core — so they remain visible over any background. Each
+    cell gets a corner badge in the top-left: yellow fill (rgb 255,255,0
+    alpha 235) with a 3 px black outline and bold black label text
+    (``A1``, ``B2``, ...). Badge font size scales with cell height so the
+    label is legible at any resolution.
 
     Args:
         image_path: Path to input screenshot PNG.
-        grid_size: Grid spacing in physical pixels (default 100).
+        cols: Number of grid columns (default 5).
+        rows: Number of grid rows (default 3).
         output_path: Path to save gridded image. If None, overwrites input.
 
     Returns:
         Path to the gridded image.
     """
-    if grid_size <= 0:
-        raise ValueError(f'grid_size must be positive, got {grid_size}')
+    if cols < 1:
+        raise ValueError(f'cols must be >= 1, got {cols}')
+    if rows < 1:
+        raise ValueError(f'rows must be >= 1, got {rows}')
 
     if output_path is None:
         output_path = image_path
@@ -222,68 +246,70 @@ def grid_overlay(image_path, grid_size=100, output_path=None):
     img = Image.open(image_path).convert('RGBA')
     width, height = img.size
 
-    # Draw grid lines on a transparent overlay
+    x_edges = [round(c * width / cols) for c in range(cols + 1)]
+    y_edges = [round(r * height / rows) for r in range(rows + 1)]
+
     overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    # Semi-transparent gray lines
-    line_color = (0, 0, 0, 80)
+    casing = (0, 0, 0, 255)
+    core = (255, 255, 0, 255)
+    casing_w = 14
+    core_w = 10
 
-    # Vertical lines
-    x = grid_size
-    while x < width:
-        draw.line([(x, 0), (x, height)], fill=line_color, width=1)
-        x += grid_size
+    # Interior vertical lines
+    for c in range(1, cols):
+        x = x_edges[c]
+        draw.line([(x, 0), (x, height)], fill=casing, width=casing_w)
+        draw.line([(x, 0), (x, height)], fill=core, width=core_w)
 
-    # Horizontal lines
-    y = grid_size
-    while y < height:
-        draw.line([(0, y), (width, y)], fill=line_color, width=1)
-        y += grid_size
+    # Interior horizontal lines
+    for r in range(1, rows):
+        y = y_edges[r]
+        draw.line([(0, y), (width, y)], fill=casing, width=casing_w)
+        draw.line([(0, y), (width, y)], fill=core, width=core_w)
 
-    # Composite overlay onto image
     img = Image.alpha_composite(img, overlay)
 
-    # Try to load a readable font, fall back to default
-    try:
-        font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 12)
-    except (OSError, IOError):
-        try:
-            font = ImageFont.truetype('/usr/share/fonts/TTF/DejaVuSans-Bold.ttf', 12)
-        except (OSError, IOError):
-            font = ImageFont.load_default()
+    # Corner badges — drawn on a separate RGBA layer so the yellow fill can
+    # be semi-transparent while the outline and text stay fully opaque.
+    badge_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    badge_draw = ImageDraw.Draw(badge_layer)
 
-    # Convert to RGB for label drawing (no more alpha needed)
+    for row in range(rows):
+        cell_h = y_edges[row + 1] - y_edges[row]
+        font_pt = max(1, round(cell_h * 64 / 360))
+        font = _load_bold_font(font_pt)
+        for col in range(cols):
+            label = f'{_col_label(col)}{row + 1}'
+            tb = badge_draw.textbbox((0, 0), label, font=font)
+            tw = tb[2] - tb[0]
+            th = tb[3] - tb[1]
+            pad_x = max(4, font_pt // 4)
+            pad_y = max(2, font_pt // 6)
+            bw = tw + 2 * pad_x
+            bh = th + 2 * pad_y
+            bx0 = x_edges[col]
+            by0 = y_edges[row]
+            bx1 = bx0 + bw
+            by1 = by0 + bh
+            badge_draw.rectangle(
+                [bx0, by0, bx1, by1],
+                fill=(255, 255, 0, 235),
+                outline=(0, 0, 0, 255),
+                width=3,
+            )
+            # Pillow's textbbox returns ink extents with a positive offset on
+            # tb[0] / tb[1]; subtract it so the glyph sits inside the padding.
+            badge_draw.text(
+                (bx0 + pad_x - tb[0], by0 + pad_y - tb[1]),
+                label,
+                fill=(0, 0, 0, 255),
+                font=font,
+            )
+
+    img = Image.alpha_composite(img, badge_layer)
     img = img.convert('RGB')
-    draw = ImageDraw.Draw(img)
-
-    num_cols = (width + grid_size - 1) // grid_size
-    num_rows = (height + grid_size - 1) // grid_size
-
-    # Column labels (A, B, C, ... Z, AA, AB, ...) along top edge
-    for col in range(num_cols):
-        label = _col_label(col)
-        cx = col * grid_size + grid_size // 2
-        label_bbox = draw.textbbox((0, 0), label, font=font)
-        lw = label_bbox[2] - label_bbox[0] + 4
-        lh = label_bbox[3] - label_bbox[1] + 4
-        lx = cx - lw // 2
-        ly = 2
-        draw.rectangle([lx, ly, lx + lw, ly + lh], fill=(0, 0, 0))
-        draw.text((lx + 2, ly + 2), label, fill=(255, 255, 255), font=font)
-
-    # Row labels (1, 2, 3, ...) along left edge
-    for row in range(num_rows):
-        label = str(row + 1)
-        cy = row * grid_size + grid_size // 2
-        label_bbox = draw.textbbox((0, 0), label, font=font)
-        lw = label_bbox[2] - label_bbox[0] + 4
-        lh = label_bbox[3] - label_bbox[1] + 4
-        lx = 2
-        ly = cy - lh // 2
-        draw.rectangle([lx, ly, lx + lw, ly + lh], fill=(0, 0, 0))
-        draw.text((lx + 2, ly + 2), label, fill=(255, 255, 255), font=font)
-
     img.save(output_path)
     return output_path
 
@@ -448,17 +474,43 @@ def parse_grid_cell(cell_str):
     return (col, row)
 
 
-def grid_cell_center(cell_str, grid_size=100):
-    """Return the (x, y) pixel center of a grid cell.
+def grid_cell_center(cell_str, width, height, cols=5, rows=3):
+    """Return the (x, y) pixel center of a grid cell on a width x height image.
+
+    Cell boundaries use ``round(c * width / cols)`` and ``round(r * height /
+    rows)`` — the same formula ``grid_overlay`` uses — so the returned pixel
+    always lies inside the cell that was drawn. Since the grid divides the
+    whole image, every cell center is guaranteed to be within
+    ``[0, width) x [0, height)``.
 
     Args:
         cell_str: Grid cell label like 'B3'.
-        grid_size: Grid spacing in physical pixels.
+        width: Image width in physical pixels.
+        height: Image height in physical pixels.
+        cols: Number of grid columns (default 5).
+        rows: Number of grid rows (default 3).
 
     Returns:
         (x, y) center of the cell in physical pixels.
+
+    Raises:
+        ValueError: If the cell is out of range for the given cols/rows.
     """
+    if cols < 1:
+        raise ValueError(f'cols must be >= 1, got {cols}')
+    if rows < 1:
+        raise ValueError(f'rows must be >= 1, got {rows}')
     col, row = parse_grid_cell(cell_str)
-    x = col * grid_size + grid_size // 2
-    y = row * grid_size + grid_size // 2
-    return (x, y)
+    if col >= cols:
+        raise ValueError(
+            f'Cell {cell_str!r} column is out of range for a {cols}x{rows} grid'
+        )
+    if row >= rows:
+        raise ValueError(
+            f'Cell {cell_str!r} row is out of range for a {cols}x{rows} grid'
+        )
+    x0 = round(col * width / cols)
+    x1 = round((col + 1) * width / cols)
+    y0 = round(row * height / rows)
+    y1 = round((row + 1) * height / rows)
+    return ((x0 + x1) // 2, (y0 + y1) // 2)

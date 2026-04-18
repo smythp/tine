@@ -218,47 +218,62 @@ class TestTargetCLI:
         tine.cli.main(['target', '400,300'])
 
     def test_target_with_grid_cell(self, monkeypatch, tmp_path):
-        """tine target E5 resolves grid cell and draws overlay."""
+        """tine target E3 resolves grid cell and draws overlay."""
         import tine.screenshot
+        import tine.display
         import tine.cli
 
         img_path = str(tmp_path / 'shot.png')
-        _make_test_image(800, 600).save(img_path)
+        _make_test_image(1920, 1080).save(img_path)
 
+        monkeypatch.setenv('TINE_PHYSICAL_WIDTH', '1920')
+        monkeypatch.setenv('TINE_PHYSICAL_HEIGHT', '1080')
+        monkeypatch.setenv('TINE_SCALE', '1.0')
+        tine.display._cached_config = None
         monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
 
-        tine.cli.main(['target', 'E5'])
+        tine.cli.main(['target', 'E3'])
 
     def test_target_pick_clicks(self, monkeypatch, tmp_path):
-        """tine target E5 --pick 2 clicks the sub-cell center."""
-        import tine.screenshot
+        """tine target E3 --pick 2 clicks the sub-cell center."""
+        import tine.display
         import tine.input
         import tine.cli
+
+        monkeypatch.setenv('TINE_PHYSICAL_WIDTH', '1920')
+        monkeypatch.setenv('TINE_PHYSICAL_HEIGHT', '1080')
+        monkeypatch.setenv('TINE_SCALE', '1.0')
+        tine.display._cached_config = None
 
         clicks = []
         monkeypatch.setattr(tine.input, 'click', lambda x, y, **kw: clicks.append((x, y)))
 
-        tine.cli.main(['target', 'E5', '--pick', '2'])
+        tine.cli.main(['target', 'E3', '--pick', '2'])
 
         assert len(clicks) == 1
-        # E5 center = (450, 450) at default grid_size=100
-        # Pick 2 = below center, so y should be > 450
-        assert clicks[0][1] > 450
+        # 5x3 on 1920x1080: E3 center is (1728, 900). Pick 2 is below center.
+        assert clicks[0][1] > 900
 
     def test_target_pick_refine(self, monkeypatch, tmp_path):
-        """tine target E5 --pick 2 --refine clicks then takes new screenshot."""
+        """tine target E3 --pick 2 --refine clicks then takes new screenshot."""
+        import tine.display
         import tine.screenshot
         import tine.input
         import tine.cli
 
         img_path = str(tmp_path / 'shot.png')
-        _make_test_image(800, 600).save(img_path)
+        _make_test_image(1920, 1080).save(img_path)
+
+        monkeypatch.setenv('TINE_PHYSICAL_WIDTH', '1920')
+        monkeypatch.setenv('TINE_PHYSICAL_HEIGHT', '1080')
+        monkeypatch.setenv('TINE_SCALE', '1.0')
+        tine.display._cached_config = None
 
         clicks = []
         monkeypatch.setattr(tine.input, 'click', lambda x, y, **kw: clicks.append((x, y)))
         monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
 
-        tine.cli.main(['target', 'E5', '--pick', '2', '--refine'])
+        tine.cli.main(['target', 'E3', '--pick', '2', '--refine'])
 
         assert len(clicks) == 1
 
@@ -270,14 +285,20 @@ class TestTargetCLI:
             tine.cli.main(['target', '!!!invalid'])
 
     def test_target_invalid_pick(self, monkeypatch, tmp_path):
-        """tine target E5 --pick 0 is rejected."""
+        """tine target E3 --pick 0 is rejected."""
+        import tine.display
         import tine.input
         import tine.cli
+
+        monkeypatch.setenv('TINE_PHYSICAL_WIDTH', '1920')
+        monkeypatch.setenv('TINE_PHYSICAL_HEIGHT', '1080')
+        monkeypatch.setenv('TINE_SCALE', '1.0')
+        tine.display._cached_config = None
 
         monkeypatch.setattr(tine.input, 'click', lambda x, y, **kw: None)
 
         with pytest.raises(SystemExit):
-            tine.cli.main(['target', 'E5', '--pick', '0'])
+            tine.cli.main(['target', 'E3', '--pick', '0'])
 
     def test_target_prints_subcell_coordinates(self, monkeypatch, tmp_path, capsys):
         """tine target 400,300 prints image path, target coords, and subcell grid."""
@@ -306,16 +327,21 @@ class TestTargetCLI:
         assert '1:' in lines[5] and '2:' in lines[5] and '3:' in lines[5]
 
     def test_target_grid_cell_prints_subcell_coordinates(self, monkeypatch, tmp_path, capsys):
-        """tine target E5 prints subcell coordinates for the grid cell center."""
+        """tine target E3 prints subcell coordinates for the grid cell center."""
+        import tine.display
         import tine.screenshot
         import tine.cli
 
         img_path = str(tmp_path / 'shot.png')
-        _make_test_image(800, 600).save(img_path)
+        _make_test_image(1920, 1080).save(img_path)
 
+        monkeypatch.setenv('TINE_PHYSICAL_WIDTH', '1920')
+        monkeypatch.setenv('TINE_PHYSICAL_HEIGHT', '1080')
+        monkeypatch.setenv('TINE_SCALE', '1.0')
+        tine.display._cached_config = None
         monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
 
-        tine.cli.main(['target', 'E5'])
+        tine.cli.main(['target', 'E3'])
 
         out = capsys.readouterr().out
         lines = out.strip().split('\n')
@@ -347,12 +373,18 @@ class TestTargetCLI:
             assert f'{pick}: {sx},{sy}' in out
 
     def test_target_custom_size(self, monkeypatch, tmp_path):
-        """tine target E5 --size 150 uses custom region size."""
+        """tine target E3 --size 150 uses custom region size."""
+        import tine.display
         import tine.screenshot
         import tine.cli
 
         img_path = str(tmp_path / 'shot.png')
-        _make_test_image(800, 600).save(img_path)
+        _make_test_image(1920, 1080).save(img_path)
+
+        monkeypatch.setenv('TINE_PHYSICAL_WIDTH', '1920')
+        monkeypatch.setenv('TINE_PHYSICAL_HEIGHT', '1080')
+        monkeypatch.setenv('TINE_SCALE', '1.0')
+        tine.display._cached_config = None
 
         overlay_calls = []
         original_overlay = tine.screenshot.target_overlay
@@ -364,6 +396,6 @@ class TestTargetCLI:
         monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: img_path)
         monkeypatch.setattr(tine.screenshot, 'target_overlay', tracking_overlay)
 
-        tine.cli.main(['target', 'E5', '--size', '150'])
+        tine.cli.main(['target', 'E3', '--size', '150'])
 
         assert overlay_calls == [150]

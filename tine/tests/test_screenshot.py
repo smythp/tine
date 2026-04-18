@@ -224,9 +224,12 @@ class TestCapture:
 # annotate() tests
 # ---------------------------------------------------------------------------
 
+_TEST_BG_COLOR = (200, 200, 200)
+
+
 def _make_test_image(width=800, height=600):
     """Create a plain test image."""
-    return Image.new('RGB', (width, height), color=(200, 200, 200))
+    return Image.new('RGB', (width, height), color=_TEST_BG_COLOR)
 
 
 def _make_ref_cache(*entries):
@@ -436,7 +439,7 @@ class TestAnnotate:
 # ---------------------------------------------------------------------------
 
 class TestGridOverlay:
-    """tine.screenshot.grid_overlay(image_path, grid_size, output_path) -> gridded image."""
+    """tine.screenshot.grid_overlay(image_path, cols, rows, output_path) -> gridded image."""
 
     def test_grid_overlay_returns_path(self, tmp_path):
         """grid_overlay() returns a valid image path."""
@@ -477,45 +480,192 @@ class TestGridOverlay:
         result = grid_overlay(img_path)
         assert result == img_path
 
-    def test_grid_overlay_custom_size(self, tmp_path):
-        """grid_overlay() with custom grid_size draws differently than default."""
+    def test_grid_overlay_custom_dims(self, tmp_path):
+        """grid_overlay() with custom cols/rows draws differently than default."""
         from tine.screenshot import grid_overlay
 
         img_path = str(tmp_path / 'input.png')
-        out_100 = str(tmp_path / 'grid_100.png')
-        out_200 = str(tmp_path / 'grid_200.png')
+        out_default = str(tmp_path / 'grid_default.png')
+        out_custom = str(tmp_path / 'grid_custom.png')
         _make_test_image(800, 600).save(img_path)
 
-        grid_overlay(img_path, grid_size=100, output_path=out_100)
-        grid_overlay(img_path, grid_size=200, output_path=out_200)
+        grid_overlay(img_path, output_path=out_default)
+        grid_overlay(img_path, cols=10, rows=6, output_path=out_custom)
 
-        img_100 = Image.open(out_100)
-        img_200 = Image.open(out_200)
-        assert list(img_100.getdata()) != list(img_200.getdata())
+        img_default = Image.open(out_default)
+        img_custom = Image.open(out_custom)
+        assert list(img_default.getdata()) != list(img_custom.getdata())
 
-    def test_grid_overlay_rejects_zero_size(self, tmp_path):
-        """grid_overlay() raises ValueError for grid_size <= 0."""
+    def test_grid_overlay_rejects_zero_dims(self, tmp_path):
+        """grid_overlay() raises ValueError for cols or rows < 1."""
         from tine.screenshot import grid_overlay
 
         img_path = str(tmp_path / 'input.png')
         _make_test_image().save(img_path)
 
-        with pytest.raises(ValueError, match='grid_size'):
-            grid_overlay(img_path, grid_size=0)
-        with pytest.raises(ValueError, match='grid_size'):
-            grid_overlay(img_path, grid_size=-50)
+        with pytest.raises(ValueError, match='cols'):
+            grid_overlay(img_path, cols=0)
+        with pytest.raises(ValueError, match='rows'):
+            grid_overlay(img_path, rows=0)
+        with pytest.raises(ValueError, match='cols'):
+            grid_overlay(img_path, cols=-3)
 
     def test_grid_overlay_small_image(self, tmp_path):
-        """grid_overlay() handles images smaller than grid_size (just labels, no lines)."""
+        """grid_overlay() handles images smaller than a typical cell."""
         from tine.screenshot import grid_overlay
 
         img_path = str(tmp_path / 'input.png')
         out_path = str(tmp_path / 'gridded.png')
-        _make_test_image(50, 50).save(img_path)
+        _make_test_image(60, 60).save(img_path)
 
-        result = grid_overlay(img_path, grid_size=100, output_path=out_path)
+        result = grid_overlay(img_path, cols=2, rows=2, output_path=out_path)
         assert os.path.exists(result)
-        assert Image.open(result).size == (50, 50)
+        assert Image.open(result).size == (60, 60)
+
+    def test_grid_overlay_font_scales_with_cell_height(self, tmp_path):
+        """Corner badge font-pt is proportional to cell height: a coarser grid
+        (larger cells) produces a taller A1 badge than a finer grid on the
+        same image. Proportional — we don't pin the absolute value."""
+        from tine.screenshot import grid_overlay
+
+        img_path = str(tmp_path / 'input.png')
+        out_coarse = str(tmp_path / 'coarse.png')
+        out_fine = str(tmp_path / 'fine.png')
+        _make_test_image(1800, 1080).save(img_path)
+
+        # 5x3 — cell_h = 360, font_pt = round(360 * 64 / 360) = 64
+        grid_overlay(img_path, cols=5, rows=3, output_path=out_coarse)
+        # 10x6 — cell_h = 180, font_pt = round(180 * 64 / 360) = 32
+        grid_overlay(img_path, cols=10, rows=6, output_path=out_fine)
+
+        coarse = Image.open(out_coarse)
+        fine = Image.open(out_fine)
+
+        def a1_badge_height(img):
+            """Height of the top-left (A1) badge — the number of contiguous
+            rows from y=0 whose first 30 columns contain a non-background
+            pixel. The badge sits against the top-left corner; the next
+            content downstream (A2 for fine, nothing nearby for coarse)
+            only starts at y = cell_h, so a gap of 3 empty rows terminates
+            the A1 badge. Background here is the test image's gray (200).
+            """
+            h = 0
+            empty = 0
+            for y in range(img.size[1]):
+                row_has_content = any(
+                    img.getpixel((x, y)) != _TEST_BG_COLOR
+                    for x in range(30)
+                )
+                if row_has_content:
+                    h = y + 1
+                    empty = 0
+                else:
+                    empty += 1
+                    if empty >= 3:
+                        break
+            return h
+
+        coarse_h = a1_badge_height(coarse)
+        fine_h = a1_badge_height(fine)
+
+        # Both must have a visible badge (not zero); coarse must be larger.
+        assert coarse_h > 0 and fine_h > 0, (
+            f'Expected a visible A1 badge in both grids; '
+            f'coarse_h={coarse_h}, fine_h={fine_h}'
+        )
+        assert coarse_h > fine_h, (
+            f'Coarser grid should have a taller A1 badge (font scales with '
+            f'cell height). coarse_h={coarse_h}, fine_h={fine_h}'
+        )
+
+    def test_grid_overlay_contrast_on_dark_and_light(self, tmp_path):
+        """Grid lines must be visible on both pure-black and pure-white
+        backgrounds. Sample one vertical and one horizontal line at points
+        that cannot be occupied by corner badges (middle of a cell, away
+        from any cell corner), and require >= 100/255 luminance delta.
+
+        Contract: if the hazard-tape line-draw calls in grid_overlay were
+        removed, this test must fail. Earlier sampling at x = round(w/cols)
+        and full-height ranges also saw badge outlines, so a line-less
+        render still passed — that was the exact visibility-test gap that
+        let the original grid bug ship. Pin the samples off the badges.
+        """
+        from tine.screenshot import grid_overlay
+
+        def luminance(px):
+            r, g, b = px[:3]
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+        for bg in [(0, 0, 0), (255, 255, 255)]:
+            img_path = str(tmp_path / f'bg_{bg[0]}.png')
+            out_path = str(tmp_path / f'grid_{bg[0]}.png')
+            Image.new('RGB', (800, 600), color=bg).save(img_path)
+            grid_overlay(img_path, cols=5, rows=3, output_path=out_path)
+            gridded = Image.open(out_path)
+            bg_y = luminance(bg)
+
+            # 800x600 5x3: x_edges=[0,160,320,480,640,800], y_edges=[0,200,400,600].
+            # Hazard-tape line is a 14px black casing with a 10px yellow core
+            # on top, so the line occupies ±7 px around the edge coordinate
+            # (black at the outer 2px on each side, yellow in the middle 10).
+            # Sample ±8 so we catch the casing; yellow alone is only 18/255
+            # delta on white, but the black casing pushes delta past 100 on
+            # both bgs. This range is why the test has teeth: a renderer
+            # that dropped the casing and kept only the core would fail on
+            # white.
+
+            # Row-0 badges sit against y=0; their height is ~50px at
+            # font_pt=36. y=100 is the middle of row-0, well clear of any
+            # badge. Sample across the vertical line at x=160.
+            vline_pixels = [gridded.getpixel((160 + dx, 100))
+                            for dx in range(-8, 9)]
+            vline_delta = max(abs(luminance(p) - bg_y) for p in vline_pixels)
+            assert vline_delta >= 100, (
+                f'Vertical line contrast on bg={bg} was only '
+                f'{vline_delta:.0f}/255; need >= 100. Pixels: {vline_pixels}'
+            )
+
+            # Row-1 badges sit at x_edges[c] with bw ~50px; they occupy
+            # x in [x_edges[c], x_edges[c]+50]. x=240 is past the B2 badge
+            # (which ends near x=210). Sample across the horizontal line
+            # at y=200.
+            hline_pixels = [gridded.getpixel((240, 200 + dy))
+                            for dy in range(-8, 9)]
+            hline_delta = max(abs(luminance(p) - bg_y) for p in hline_pixels)
+            assert hline_delta >= 100, (
+                f'Horizontal line contrast on bg={bg} was only '
+                f'{hline_delta:.0f}/255; need >= 100. Pixels: {hline_pixels}'
+            )
+
+    def test_grid_overlay_ocr_roundtrip(self, tmp_path):
+        """OCR must detect the vast majority of cell labels rendered by
+        grid_overlay. On a solid-color (noise-free) synthetic background
+        this should comfortably clear the witness's 14/15-on-real-screenshot
+        benchmark — we require >= 13/15 to allow for OCR quirks on a couple
+        of glyphs."""
+        pytest.importorskip('rapidocr')
+        from tine.screenshot import grid_overlay
+        from tine.ocr import detect_text, normalize_text
+
+        img_path = str(tmp_path / 'bg.png')
+        out_path = str(tmp_path / 'grid.png')
+        Image.new('RGB', (1920, 1080), color=(128, 128, 128)).save(img_path)
+
+        grid_overlay(img_path, cols=5, rows=3, output_path=out_path)
+
+        detections = detect_text(out_path)
+        detected_norm = {normalize_text(d['text']) for d in detections}
+
+        cols = ['A', 'B', 'C', 'D', 'E']
+        rows = [1, 2, 3]
+        expected = [f'{c}{r}' for r in rows for c in cols]
+        found = [label for label in expected
+                 if normalize_text(label) in detected_norm]
+
+        assert len(found) >= 13, (
+            f'OCR detected only {len(found)}/15 labels: '
+            f'found={found} detected_norm={detected_norm}'
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -584,25 +734,62 @@ class TestParseGridCell:
 # ---------------------------------------------------------------------------
 
 class TestGridCellCenter:
-    """tine.screenshot.grid_cell_center(cell_str, grid_size) -> (x, y) pixel center."""
+    """tine.screenshot.grid_cell_center(cell_str, W, H, cols, rows) -> (x, y) center."""
 
-    def test_a1_default_size(self):
+    def test_a1_5x3_1920x1080(self):
+        """Top-left cell on a 1920x1080 5x3 grid centers in the first cell."""
         from tine.screenshot import grid_cell_center
-        assert grid_cell_center('A1') == (50, 50)
+        # cell width = 384, height = 360. A1 center = (192, 180).
+        assert grid_cell_center('A1', 1920, 1080) == (192, 180)
 
-    def test_b3_default_size(self):
+    def test_e3_5x3_1920x1080_onscreen(self):
+        """Bottom-right cell on 1920x1080 5x3 must be inside the image."""
         from tine.screenshot import grid_cell_center
-        assert grid_cell_center('B3') == (150, 250)
+        x, y = grid_cell_center('E3', 1920, 1080)
+        assert 0 <= x < 1920
+        assert 0 <= y < 1080
 
-    def test_custom_grid_size(self):
+    def test_b3_5x3_1920x1080(self):
+        """B3 center on a 5x3 1920x1080 grid."""
         from tine.screenshot import grid_cell_center
-        assert grid_cell_center('A1', grid_size=200) == (100, 100)
-        assert grid_cell_center('B2', grid_size=200) == (300, 300)
+        # B = col 1, row 3 = row 2. 5x3 cells: x in [384,768], y in [720,1080]
+        # Centers: x=576, y=900.
+        assert grid_cell_center('B3', 1920, 1080) == (576, 900)
 
-    def test_c1_default_size(self):
+    def test_custom_dims(self):
         from tine.screenshot import grid_cell_center
-        # C = col 2, row 1 = row 0
-        assert grid_cell_center('C1') == (250, 50)
+        # 10x6 on 1000x600 — cell w=100, h=100. A1 center = (50, 50).
+        assert grid_cell_center('A1', 1000, 600, cols=10, rows=6) == (50, 50)
+        # B2 center = (150, 150).
+        assert grid_cell_center('B2', 1000, 600, cols=10, rows=6) == (150, 150)
+
+    def test_never_offscreen_1920x1080(self):
+        """No cell in a 5x3 grid on 1920x1080 resolves to an offscreen center."""
+        from tine.screenshot import grid_cell_center
+        W, H = 1920, 1080
+        for col_letter in ['A', 'B', 'C', 'D', 'E']:
+            for row_num in [1, 2, 3]:
+                x, y = grid_cell_center(f'{col_letter}{row_num}', W, H)
+                assert 0 <= x < W, f'{col_letter}{row_num} x={x} out of range'
+                assert 0 <= y < H, f'{col_letter}{row_num} y={y} out of range'
+
+    def test_never_offscreen_1366x768(self):
+        """Same guarantee at a smaller common resolution."""
+        from tine.screenshot import grid_cell_center
+        W, H = 1366, 768
+        for col_letter in ['A', 'B', 'C', 'D', 'E']:
+            for row_num in [1, 2, 3]:
+                x, y = grid_cell_center(f'{col_letter}{row_num}', W, H)
+                assert 0 <= x < W, f'{col_letter}{row_num} x={x} out of range'
+                assert 0 <= y < H, f'{col_letter}{row_num} y={y} out of range'
+
+    def test_out_of_range_cell(self):
+        """Cells outside the grid dims raise ValueError."""
+        from tine.screenshot import grid_cell_center
+        with pytest.raises(ValueError):
+            grid_cell_center('F1', 1920, 1080)  # only A-E for 5 cols
+        with pytest.raises(ValueError):
+            grid_cell_center('A4', 1920, 1080)  # only rows 1-3
 
 
 # ---------------------------------------------------------------------------
