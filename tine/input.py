@@ -405,7 +405,7 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
 
 
 def type_text(text, delay_ms=None):
-    """Type text via evdev key events through the tine-input device.
+    """Type text via evdev key events through the tine-keyboard device.
 
     Tries the persistent input daemon first for zero-warmup operation.
     Falls back to direct UInput if daemon is unavailable.
