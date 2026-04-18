@@ -224,9 +224,12 @@ class TestCapture:
 # annotate() tests
 # ---------------------------------------------------------------------------
 
+_TEST_BG_COLOR = (200, 200, 200)
+
+
 def _make_test_image(width=800, height=600):
     """Create a plain test image."""
-    return Image.new('RGB', (width, height), color=(200, 200, 200))
+    return Image.new('RGB', (width, height), color=_TEST_BG_COLOR)
 
 
 def _make_ref_cache(*entries):
@@ -550,7 +553,7 @@ class TestGridOverlay:
             empty = 0
             for y in range(img.size[1]):
                 row_has_content = any(
-                    img.getpixel((x, y)) != (200, 200, 200)
+                    img.getpixel((x, y)) != _TEST_BG_COLOR
                     for x in range(30)
                 )
                 if row_has_content:
@@ -577,41 +580,61 @@ class TestGridOverlay:
 
     def test_grid_overlay_contrast_on_dark_and_light(self, tmp_path):
         """Grid lines must be visible on both pure-black and pure-white
-        backgrounds. Luminance delta between a gridline pixel and the
-        background must be >= 100/255 on each variant."""
+        backgrounds. Sample one vertical and one horizontal line at points
+        that cannot be occupied by corner badges (middle of a cell, away
+        from any cell corner), and require >= 100/255 luminance delta.
+
+        Contract: if the hazard-tape line-draw calls in grid_overlay were
+        removed, this test must fail. Earlier sampling at x = round(w/cols)
+        and full-height ranges also saw badge outlines, so a line-less
+        render still passed — that was the exact visibility-test gap that
+        let the original grid bug ship. Pin the samples off the badges.
+        """
         from tine.screenshot import grid_overlay
 
         def luminance(px):
             r, g, b = px[:3]
             return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-        def max_line_delta(img, background_rgb):
-            bg_y = luminance(background_rgb)
-            w, h = img.size
-            # Scan the vertical line between cell 0 and cell 1 of a 5-col
-            # grid — centered at round(w/5). Sample a column 15 px wide
-            # around that x across the full height.
-            cx = round(w / 5)
-            delta = 0.0
-            for y in range(0, h):
-                for dx in range(-7, 8):
-                    x = cx + dx
-                    if 0 <= x < w:
-                        d = abs(luminance(img.getpixel((x, y))) - bg_y)
-                        if d > delta:
-                            delta = d
-            return delta
-
         for bg in [(0, 0, 0), (255, 255, 255)]:
             img_path = str(tmp_path / f'bg_{bg[0]}.png')
             out_path = str(tmp_path / f'grid_{bg[0]}.png')
             Image.new('RGB', (800, 600), color=bg).save(img_path)
-            grid_overlay(img_path, output_path=out_path)
+            grid_overlay(img_path, cols=5, rows=3, output_path=out_path)
             gridded = Image.open(out_path)
-            delta = max_line_delta(gridded, bg)
-            assert delta >= 100, (
-                f'Grid line contrast on bg={bg} was only {delta:.0f}/255; '
-                f'need >= 100 to be visible to agents'
+            bg_y = luminance(bg)
+
+            # 800x600 5x3: x_edges=[0,160,320,480,640,800], y_edges=[0,200,400,600].
+            # Hazard-tape line is a 14px black casing with a 10px yellow core
+            # on top, so the line occupies ±7 px around the edge coordinate
+            # (black at the outer 2px on each side, yellow in the middle 10).
+            # Sample ±8 so we catch the casing; yellow alone is only 18/255
+            # delta on white, but the black casing pushes delta past 100 on
+            # both bgs. This range is why the test has teeth: a renderer
+            # that dropped the casing and kept only the core would fail on
+            # white.
+
+            # Row-0 badges sit against y=0; their height is ~50px at
+            # font_pt=36. y=100 is the middle of row-0, well clear of any
+            # badge. Sample across the vertical line at x=160.
+            vline_pixels = [gridded.getpixel((160 + dx, 100))
+                            for dx in range(-8, 9)]
+            vline_delta = max(abs(luminance(p) - bg_y) for p in vline_pixels)
+            assert vline_delta >= 100, (
+                f'Vertical line contrast on bg={bg} was only '
+                f'{vline_delta:.0f}/255; need >= 100. Pixels: {vline_pixels}'
+            )
+
+            # Row-1 badges sit at x_edges[c] with bw ~50px; they occupy
+            # x in [x_edges[c], x_edges[c]+50]. x=240 is past the B2 badge
+            # (which ends near x=210). Sample across the horizontal line
+            # at y=200.
+            hline_pixels = [gridded.getpixel((240, 200 + dy))
+                            for dy in range(-8, 9)]
+            hline_delta = max(abs(luminance(p) - bg_y) for p in hline_pixels)
+            assert hline_delta >= 100, (
+                f'Horizontal line contrast on bg={bg} was only '
+                f'{hline_delta:.0f}/255; need >= 100. Pixels: {hline_pixels}'
             )
 
     def test_grid_overlay_ocr_roundtrip(self, tmp_path):
