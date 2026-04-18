@@ -135,14 +135,7 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
     img = Image.open(image_path)
     draw = ImageDraw.Draw(img)
 
-    # Try to load a readable font, fall back to default
-    try:
-        font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 14)
-    except (OSError, IOError):
-        try:
-            font = ImageFont.truetype('/usr/share/fonts/TTF/DejaVuSans-Bold.ttf', 14)
-        except (OSError, IOError):
-            font = ImageFont.load_default()
+    font = _load_bold_font(14)
 
     for ref_id, ref_data in ref_cache.items():
         # Skip non-dict entries (e.g. _app metadata key)
@@ -199,14 +192,41 @@ def annotate(image_path, ref_cache, output_path=None, scale=1.0):
     return output_path
 
 
+_BOLD_FONT_PATHS = (
+    # Debian / Ubuntu
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    # Arch (when ttf-dejavu is installed)
+    '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+    # Fedora / RHEL
+    '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf',
+    # Arch / Fedora default (Liberation)
+    '/usr/share/fonts/liberation/LiberationSans-Bold.ttf',
+    '/usr/share/fonts/liberation-sans/LiberationSans-Bold.ttf',
+    # GNOME default
+    '/usr/share/fonts/Adwaita/AdwaitaSans-Bold.ttf',
+)
+
+_BOLD_FONT_NAMES = ('DejaVuSans-Bold.ttf', 'LiberationSans-Bold.ttf')
+
+
 def _load_bold_font(size):
-    """Load DejaVu Sans Bold at the requested point size, or the PIL default."""
-    for path in (
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-        '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
-    ):
+    """Load a bold sans-serif font at the requested point size.
+
+    Tries known distro paths first, then PIL's name-based resolution (which
+    searches system font directories), and finally the PIL bitmap default.
+    The bitmap default ignores `size` and renders at ~10 px, so a caller
+    that ends up on that path should treat any font-sized overlay as broken
+    — but returning it avoids a hard crash on minimal systems.
+    """
+    for path in _BOLD_FONT_PATHS:
         try:
             return ImageFont.truetype(path, size)
+        except (OSError, IOError):
+            continue
+    for name in _BOLD_FONT_NAMES:
+        try:
+            return ImageFont.truetype(name, size)
         except (OSError, IOError):
             continue
     return ImageFont.load_default()
@@ -405,14 +425,7 @@ def target_overlay(image_path, x, y, region_size=100, output_path=None):
         gy = int(ry0 + i * cell_size)
         draw.line([(rx0, gy), (rx1, gy)], fill=color, width=1)
 
-    # Load font for labels
-    try:
-        font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 12)
-    except (OSError, IOError):
-        try:
-            font = ImageFont.truetype('/usr/share/fonts/TTF/DejaVuSans-Bold.ttf', 12)
-        except (OSError, IOError):
-            font = ImageFont.load_default()
+    font = _load_bold_font(12)
 
     # Label cells 1-9 (numpad layout)
     for pick in range(1, 10):
