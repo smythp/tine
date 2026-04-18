@@ -55,7 +55,6 @@ def _install_gi_stubs():
             return None
 
     gi = types.ModuleType('gi')
-    gi._tine_stubbed = True
     gi.require_version = lambda *a, **kw: None
     repo = types.ModuleType('gi.repository')
     repo.Atspi = _Atspi
