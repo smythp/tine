@@ -21,10 +21,17 @@ import pytest
 # tine.atspi_walker imports gi and gi.repository.Atspi at module load. On
 # systems without PyGObject (CI / dev boxes without the at-spi stack), the
 # import fails before we can get to the unit under test. Install minimal
-# stubs before importing the walker so _walk is exercisable in isolation.
+# stubs only when gi isn't already importable — never clobber a real module.
 def _install_gi_stubs():
-    if 'gi' in sys.modules and hasattr(sys.modules['gi'], '_tine_stubbed'):
+    if 'gi' in sys.modules:
+        # Real gi (or an earlier stub) already loaded — leave it alone.
         return
+    try:
+        import gi  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        return  # real gi imported successfully; nothing to stub
 
     class _CoordType:
         SCREEN = 0

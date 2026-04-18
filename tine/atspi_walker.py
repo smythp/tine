@@ -149,7 +149,7 @@ def main():
         print(json.dumps({
             'role': 'application',
             'name': target,
-            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0},
+            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'coord': 'window'},
             'states': [],
             'actions': [],
             'children': [],
@@ -171,7 +171,7 @@ def main():
         result = {
             'role': 'desktop',
             'name': 'desktop',
-            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0},
+            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'coord': 'window'},
             'states': [],
             'actions': [],
             'children': children,

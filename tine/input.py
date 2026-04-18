@@ -355,9 +355,11 @@ def click_ref(ref_id, ref_cache, window_offset=(0, 0), button='left', double=Fal
     """Click at the center of a ref's bounding box.
 
     Coordinate pipeline depends on bbox['coord']:
-      'screen': bbox is already in screen-logical coords (e.g. Firefox)
+      'screen': bbox is already in screen-logical coords (e.g. OCR refs ref_tN)
         physical = center * scale_factor
-      'window': bbox is relative to window frame_rect (e.g. GTK4 on Wayland)
+      'window': bbox is relative to window frame_rect (AT-SPI refs for every
+        toolkit on Wayland — GTK4 natively, Firefox via the walker's
+        frame-origin subtraction; see finding-20260418-3ff1)
         physical = (window_offset + center) * scale_factor
 
     Args:
