@@ -7,7 +7,12 @@ a JSON dict to stdout. Designed to be called from cli.py as a subprocess
 to avoid D-Bus cache staleness between invocations.
 
 Output format matches what tree.py expects:
-    {role, name, bbox: {x, y, w, h}, states, actions, children, child_index}
+    {role, name, bbox: {x, y, w, h, coord}, states, actions, children, child_index}
+
+Bounding boxes are always window-relative (coord='window'). Downstream code
+adds the compositor's window offset at click time. See finding-20260418-3ff1
+for why AT-SPI CoordType.SCREEN is unreliable on Wayland (Firefox reports a
+fake-frame origin; GTK4 returns (0, 0, w, h) as a placeholder).
 """
 
 import json
@@ -21,8 +26,27 @@ MAX_DEPTH = 12
 MAX_NODES = 50000  # Safety cap to prevent runaway trees
 
 
-def _walk(node, depth=0):
-    """Recursively walk an AT-SPI2 node, returning a dict."""
+def _window_origin(node):
+    """Get an AT-SPI node's WINDOW-coord origin, or (0, 0) on failure."""
+    try:
+        comp = node.get_component_iface()
+        if comp:
+            w = comp.get_extents(Atspi.CoordType.WINDOW)
+            return (w.x, w.y)
+    except Exception:
+        pass
+    return (0, 0)
+
+
+def _walk(node, depth=0, frame_origin=(0, 0)):
+    """Recursively walk an AT-SPI2 node, returning a dict.
+
+    frame_origin is the WINDOW-coord origin of the current subtree's top-level
+    window/frame. Element bboxes are computed relative to it so downstream can
+    add the compositor's real window offset uniformly, regardless of whether
+    the toolkit reports frame.WINDOW as (0, 0) (GTK4) or as a non-zero fake
+    value (Firefox; see finding-20260418-3ff1).
+    """
     _walk._count += 1
     if _walk._count > MAX_NODES:
         return None
@@ -32,27 +56,16 @@ def _walk(node, depth=0):
     role = node.get_role_name() or 'unknown'
     name = node.get_name() or ''
 
-    # Bounding box — try SCREEN coords first (absolute, no offset needed).
-    # GTK4 on Wayland returns (0,0) for SCREEN, so fall back to WINDOW
-    # (relative to frame_rect, needs window offset added downstream).
-    # The "coord" field tells downstream code which space we're in.
-    #
-    # Heuristic: trust SCREEN only if x or y is non-zero. GTK4 on Wayland
-    # always returns (0,0,w,h) for SCREEN — valid dimensions but zeroed
-    # position. An element genuinely at screen (0,0) would be under the
-    # top-left panel pixel, which is never an interactive target.
+    # Compute bbox as (element.WINDOW - frame_origin), tagged 'window'. The
+    # subtraction is a no-op when frame_origin == (0, 0), so this preserves
+    # the pre-fix behavior for well-behaved toolkits.
     bbox = {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'coord': 'window'}
     try:
         comp = node.get_component_iface()
         if comp:
-            scr = comp.get_extents(Atspi.CoordType.SCREEN)
-            if scr.x != 0 or scr.y != 0:
-                bbox = {'x': scr.x, 'y': scr.y, 'w': scr.width, 'h': scr.height,
-                        'coord': 'screen'}
-            else:
-                win = comp.get_extents(Atspi.CoordType.WINDOW)
-                bbox = {'x': win.x, 'y': win.y, 'w': win.width, 'h': win.height,
-                        'coord': 'window'}
+            w = comp.get_extents(Atspi.CoordType.WINDOW)
+            bbox = {'x': w.x - frame_origin[0], 'y': w.y - frame_origin[1],
+                    'w': w.width, 'h': w.height, 'coord': 'window'}
     except Exception:
         pass
 
@@ -80,7 +93,8 @@ def _walk(node, depth=0):
     except Exception:
         pass
 
-    # Children
+    # Children. Direct children of an 'application' node are top-level windows;
+    # each one defines its own frame coordinate system for its subtree.
     children = []
     try:
         n_children = node.get_child_count()
@@ -90,7 +104,11 @@ def _walk(node, depth=0):
             try:
                 child = node.get_child_at_index(i)
                 if child:
-                    child_dict = _walk(child, depth + 1)
+                    child_frame_origin = (
+                        _window_origin(child) if role == 'application'
+                        else frame_origin
+                    )
+                    child_dict = _walk(child, depth + 1, child_frame_origin)
                     if child_dict is not None:
                         child_dict['child_index'] = i
                         children.append(child_dict)
@@ -131,7 +149,7 @@ def main():
         print(json.dumps({
             'role': 'application',
             'name': target,
-            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0},
+            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'coord': 'window'},
             'states': [],
             'actions': [],
             'children': [],
@@ -153,7 +171,7 @@ def main():
         result = {
             'role': 'desktop',
             'name': 'desktop',
-            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0},
+            'bbox': {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'coord': 'window'},
             'states': [],
             'actions': [],
             'children': children,
