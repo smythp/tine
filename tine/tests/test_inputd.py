@@ -44,6 +44,39 @@ class FakeDaemonUInput:
                 if etype == ecodes.EV_ABS]
 
 
+class FakeDaemonDevicePair:
+    """Wraps the daemon's pointer + keyboard devices and forwards views.
+
+    The daemon owns two uinput devices. For existing tests that assert
+    on aggregate ``abs_writes`` / ``key_writes`` / ``syn_count`` the pair
+    forwards by union. Tests that care which device saw an event can
+    reach ``pair.pointer`` or ``pair.keyboard`` directly.
+    """
+
+    def __init__(self):
+        self.pointer = FakeDaemonUInput()
+        self.keyboard = FakeDaemonUInput()
+
+    def as_tuple(self):
+        return (self.pointer, self.keyboard)
+
+    @property
+    def events(self):
+        return self.pointer.events + self.keyboard.events
+
+    @property
+    def syn_count(self):
+        return self.pointer.syn_count + self.keyboard.syn_count
+
+    @property
+    def key_writes(self):
+        return self.pointer.key_writes + self.keyboard.key_writes
+
+    @property
+    def abs_writes(self):
+        return self.pointer.abs_writes + self.keyboard.abs_writes
+
+
 @pytest.fixture
 def tmp_sock(tmp_path):
     """Return a temporary socket path."""
@@ -52,8 +85,8 @@ def tmp_sock(tmp_path):
 
 @pytest.fixture
 def fake_dev():
-    """Create a fake UInput device."""
-    return FakeDaemonUInput()
+    """Create a fake pointer+keyboard device pair for the daemon."""
+    return FakeDaemonDevicePair()
 
 
 @pytest.fixture
@@ -64,7 +97,7 @@ def daemon_thread(tmp_sock, fake_dev):
     thread = threading.Thread(
         target=run_daemon,
         kwargs={
-            'create_uinput': lambda: fake_dev,
+            'create_devices': lambda: fake_dev.as_tuple(),
             'sock_path': tmp_sock,
             'timeout': 30,
         },
@@ -234,7 +267,7 @@ class TestDaemonTimeout:
         thread = threading.Thread(
             target=run_daemon,
             kwargs={
-                'create_uinput': lambda: fake_dev,
+                'create_devices': lambda: fake_dev.as_tuple(),
                 'sock_path': tmp_sock,
                 'timeout': 1,  # 1 second timeout for fast test
             },
@@ -310,7 +343,7 @@ class TestStaleSocket:
         thread = threading.Thread(
             target=run_daemon,
             kwargs={
-                'create_uinput': lambda: fake_dev,
+                'create_devices': lambda: fake_dev.as_tuple(),
                 'sock_path': tmp_sock,
                 'timeout': 2,
             },
@@ -347,71 +380,61 @@ class TestStaleSocket:
 
 class TestFallback:
 
+    def _patch_direct_devices(self, monkeypatch):
+        """Install pointer + keyboard fakes and disable the daemon path."""
+        import tine.input
+        from tine.tests.test_input import FakeUInput
+        pointer, keyboard = FakeUInput(), FakeUInput()
+        monkeypatch.setattr(tine.input, '_pointer_device', pointer)
+        monkeypatch.setattr(tine.input, '_keyboard_device', keyboard)
+        monkeypatch.setattr(tine.input, '_get_pointer_uinput', lambda: pointer)
+        monkeypatch.setattr(tine.input, '_get_keyboard_uinput', lambda: keyboard)
+        monkeypatch.setattr(tine.input, '_use_daemon', False)
+        return pointer, keyboard
+
     def test_move_falls_back_without_daemon(self, monkeypatch):
         """When daemon is unavailable, move() should use direct UInput."""
         import tine.input
         import tine.display
-        from tine.tests.test_input import FakeUInput
-
-        fake = FakeUInput()
-        monkeypatch.setattr(tine.input, '_uinput_device', fake)
-        monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
+        pointer, _ = self._patch_direct_devices(monkeypatch)
         monkeypatch.setattr(tine.display, '_cached_config',
                             {'scale': 1.0, 'physical_width': 1920, 'physical_height': 1080})
-        # Disable daemon so it doesn't try to auto-start
-        monkeypatch.setattr(tine.input, '_use_daemon', False)
 
         tine.input.move(500, 300)
 
-        from evdev import ecodes
-        assert len(fake.abs_writes) >= 2
+        assert len(pointer.abs_writes) >= 2
 
     def test_click_falls_back_without_daemon(self, monkeypatch):
         """When daemon is unavailable, click() should use direct UInput."""
         import tine.input
         import tine.display
-        from tine.tests.test_input import FakeUInput
-
-        fake = FakeUInput()
-        monkeypatch.setattr(tine.input, '_uinput_device', fake)
-        monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
+        pointer, _ = self._patch_direct_devices(monkeypatch)
         monkeypatch.setattr(tine.display, '_cached_config',
                             {'scale': 1.0, 'physical_width': 1920, 'physical_height': 1080})
-        monkeypatch.setattr(tine.input, '_use_daemon', False)
 
         tine.input.click(100, 200)
 
         from evdev import ecodes
-        assert (ecodes.BTN_LEFT, 1) in fake.key_writes
+        assert (ecodes.BTN_LEFT, 1) in pointer.key_writes
 
     def test_type_falls_back_without_daemon(self, monkeypatch):
         """When daemon is unavailable, type_text() should use direct UInput."""
         import tine.input
-        from tine.tests.test_input import FakeUInput
-
-        fake = FakeUInput()
-        monkeypatch.setattr(tine.input, '_uinput_device', fake)
-        monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
-        monkeypatch.setattr(tine.input, '_use_daemon', False)
+        _, keyboard = self._patch_direct_devices(monkeypatch)
 
         tine.input.type_text('a')
 
         from tine.input import KEYCODES
-        assert (KEYCODES['a'], 1) in fake.key_writes
+        assert (KEYCODES['a'], 1) in keyboard.key_writes
 
     def test_key_falls_back_without_daemon(self, monkeypatch):
         """When daemon is unavailable, key_combo() should use direct UInput."""
         import tine.input
-        from tine.tests.test_input import FakeUInput
-
-        fake = FakeUInput()
-        monkeypatch.setattr(tine.input, '_uinput_device', fake)
-        monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
-        monkeypatch.setattr(tine.input, '_use_daemon', False)
+        _, keyboard = self._patch_direct_devices(monkeypatch)
 
         tine.input.key_combo('enter')
 
-        assert (28, 1) in fake.key_writes
+        assert (28, 1) in keyboard.key_writes
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +449,7 @@ class TestShutdown:
         thread = threading.Thread(
             target=run_daemon,
             kwargs={
-                'create_uinput': lambda: fake_dev,
+                'create_devices': lambda: fake_dev.as_tuple(),
                 'sock_path': tmp_sock,
                 'timeout': 30,
             },
@@ -477,7 +500,7 @@ class TestPidFile:
         thread = threading.Thread(
             target=run_daemon,
             kwargs={
-                'create_uinput': lambda: fake_dev,
+                'create_devices': lambda: fake_dev.as_tuple(),
                 'sock_path': tmp_sock,
                 'timeout': 30,
             },

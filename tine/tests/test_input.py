@@ -83,16 +83,52 @@ class FakeSubprocess:
         return ' '.join(str(c) for c in self.last_cmd) if self.last_cmd else ''
 
 
+class _FakeUInputPair:
+    """Aggregates pointer + keyboard fakes and forwards the event views.
+
+    Lets existing tests continue to query ``abs_writes`` and ``key_writes``
+    on a single object while the underlying split-device architecture is
+    exercised. Tests that care about which device saw an event can read
+    ``pair.pointer`` or ``pair.keyboard`` directly.
+    """
+
+    def __init__(self):
+        self.pointer = FakeUInput()
+        self.keyboard = FakeUInput()
+
+    @property
+    def events(self):
+        return self.pointer.events + self.keyboard.events
+
+    @property
+    def syn_count(self):
+        return self.pointer.syn_count + self.keyboard.syn_count
+
+    @property
+    def abs_writes(self):
+        return self.pointer.abs_writes + self.keyboard.abs_writes
+
+    @property
+    def key_writes(self):
+        return self.pointer.key_writes + self.keyboard.key_writes
+
+
 @pytest.fixture
 def fake_uinput(monkeypatch):
-    """Patch _get_uinput to return a FakeUInput and reset cached device."""
+    """Patch pointer + keyboard getters to return FakeUInput instances.
+
+    Returns a ``_FakeUInputPair`` so tests can assert aggregated
+    ``abs_writes`` / ``key_writes`` or inspect the individual devices.
+    """
     import tine.input
-    fake = FakeUInput()
-    monkeypatch.setattr(tine.input, '_uinput_device', fake)
-    monkeypatch.setattr(tine.input, '_get_uinput', lambda: fake)
+    pair = _FakeUInputPair()
+    monkeypatch.setattr(tine.input, '_pointer_device', pair.pointer)
+    monkeypatch.setattr(tine.input, '_keyboard_device', pair.keyboard)
+    monkeypatch.setattr(tine.input, '_get_pointer_uinput', lambda: pair.pointer)
+    monkeypatch.setattr(tine.input, '_get_keyboard_uinput', lambda: pair.keyboard)
     # Disable daemon so tests use direct UInput path
     monkeypatch.setattr(tine.input, '_use_daemon', False)
-    return fake
+    return pair
 
 
 @pytest.fixture
@@ -109,78 +145,189 @@ def default_scale(monkeypatch):
 # ---------------------------------------------------------------------------
 
 class TestUinputCapabilities:
-    """Regression: tine-input must not advertise BTN_TOUCH.
+    """Regression tests on the shape of tine's uinput devices.
 
-    Firefox's Wayland pointer path ignores events from devices that
-    advertise BTN_TOUCH in their EV_KEY set, even when the device is
-    classified by libinput as a plain pointer. The finding was traced
-    via probe devices on archgnome (2026-04-15): dropping BTN_TOUCH
-    made tine clicks land on Firefox without affecting GTK clients.
-    See finding-20260414-0y45.
+    Three invariants matter for Wayland/libinput to deliver events correctly:
+
+    1. No BTN_TOUCH. Devices advertising BTN_TOUCH route events through
+       wl_touch in libinput's internal dispatch, and Firefox's Wayland
+       pointer binding ignores wl_touch. See finding-20260414-0y45 and
+       brief-20260415-6yjt.
+
+    2. Pointer and keyboard must be separate uinput devices. Combining
+       them makes libinput classify the result as cap:kp and silently
+       drop EV_ABS motion events — only EV_REL is accepted for pointer
+       aspects of kp devices. See finding-20260417-k7j5.
+
+    3. Unique vendor/product IDs. evdev's default 0x0001:0x0001 collides
+       with other common virtual uinput devices (hotkey daemons,
+       passthrough scripts). libinput groups them and routes pointer
+       events to whichever it picked first — often not ours.
     """
 
-    def _captured_caps(self, monkeypatch):
-        """Intercept UInput() and return the caps dict that was passed in."""
-        captured = {}
+    def _captured_pair(self, monkeypatch):
+        """Intercept UInput() and return the two capability dicts passed in.
+
+        Returns a list of dicts, one per UInput() call, in creation order
+        (pointer first, keyboard second).
+        """
+        captured = []
 
         class FakeDev:
             def close(self): pass
 
-        def fake_uinput_ctor(capabilities, name=None, input_props=None):
-            captured['capabilities'] = capabilities
-            captured['name'] = name
-            captured['input_props'] = input_props
+        def fake_uinput_ctor(capabilities, name=None, input_props=None,
+                             vendor=None, product=None, version=None):
+            captured.append({
+                'capabilities': capabilities,
+                'name': name,
+                'input_props': input_props,
+                'vendor': vendor,
+                'product': product,
+            })
             return FakeDev()
 
         import tine.input
         monkeypatch.setattr(tine.input, 'UInput', fake_uinput_ctor)
-        monkeypatch.setattr(tine.input, '_uinput_device', None)
+        monkeypatch.setattr(tine.input, '_pointer_device', None)
+        monkeypatch.setattr(tine.input, '_keyboard_device', None)
         import time
         monkeypatch.setattr(time, 'sleep', lambda _s: None)
-        tine.input._get_uinput()
+        tine.input._ensure_devices()
+        assert len(captured) == 2, 'expected two UInput devices (pointer, keyboard)'
         return captured
 
-    def test_input_device_has_no_btn_touch(self, monkeypatch):
+    def test_pointer_device_has_no_btn_touch(self, monkeypatch):
         from evdev import ecodes
 
-        captured = self._captured_caps(monkeypatch)
-        key_caps = captured['capabilities'].get(ecodes.EV_KEY, [])
+        pointer, _ = self._captured_pair(monkeypatch)
+        key_caps = pointer['capabilities'].get(ecodes.EV_KEY, [])
         assert ecodes.BTN_TOUCH not in key_caps, (
-            'tine-input must not advertise BTN_TOUCH — breaks Firefox clicks'
+            'tine-pointer must not advertise BTN_TOUCH — breaks Firefox clicks'
         )
 
-    def test_input_device_has_mouse_buttons(self, monkeypatch):
+    def test_pointer_device_has_mouse_buttons(self, monkeypatch):
         from evdev import ecodes
 
-        captured = self._captured_caps(monkeypatch)
-        key_caps = captured['capabilities'].get(ecodes.EV_KEY, [])
+        pointer, _ = self._captured_pair(monkeypatch)
+        key_caps = pointer['capabilities'].get(ecodes.EV_KEY, [])
         assert ecodes.BTN_LEFT in key_caps
         assert ecodes.BTN_RIGHT in key_caps
         assert ecodes.BTN_MIDDLE in key_caps
 
-    def test_inputd_device_has_no_btn_touch(self, monkeypatch):
-        """The daemon creates its own uinput device — same rule applies."""
+    def test_pointer_device_has_abs_axes(self, monkeypatch):
         from evdev import ecodes
 
-        captured = {}
+        pointer, _ = self._captured_pair(monkeypatch)
+        abs_caps = pointer['capabilities'].get(ecodes.EV_ABS, [])
+        abs_codes = [code for code, info in abs_caps]
+        assert ecodes.ABS_X in abs_codes
+        assert ecodes.ABS_Y in abs_codes
+
+    def test_pointer_device_has_no_keyboard_keys(self, monkeypatch):
+        """cap:kp dispatch drops EV_ABS. Pointer must advertise only mouse buttons."""
+        from evdev import ecodes
+        from tine.input import KEYCODES
+
+        pointer, _ = self._captured_pair(monkeypatch)
+        key_caps = set(pointer['capabilities'].get(ecodes.EV_KEY, []))
+        mouse_btns = {ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE}
+        extra = key_caps - mouse_btns
+        assert not extra, (
+            f'tine-pointer must only advertise mouse buttons; found extra: {extra!r}'
+        )
+        # Cross-check: no tine keyboard keycode appears on the pointer device
+        keyboard_codes = set(KEYCODES.values())
+        overlap = key_caps & keyboard_codes - mouse_btns
+        assert not overlap, (
+            f'keyboard keycodes leaked onto pointer device: {overlap!r}'
+        )
+
+    def test_pointer_device_has_input_prop_direct(self, monkeypatch):
+        from evdev import ecodes
+
+        pointer, _ = self._captured_pair(monkeypatch)
+        assert ecodes.INPUT_PROP_DIRECT in (pointer['input_props'] or [])
+
+    def test_keyboard_device_has_no_mouse_buttons(self, monkeypatch):
+        """Keyboard must not advertise mouse buttons — would flip it to cap:kp."""
+        from evdev import ecodes
+
+        _, keyboard = self._captured_pair(monkeypatch)
+        key_caps = set(keyboard['capabilities'].get(ecodes.EV_KEY, []))
+        mouse_btns = {ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE}
+        assert not (key_caps & mouse_btns), (
+            'tine-keyboard must not advertise mouse buttons'
+        )
+
+    def test_keyboard_device_has_no_abs_axes(self, monkeypatch):
+        from evdev import ecodes
+
+        _, keyboard = self._captured_pair(monkeypatch)
+        assert ecodes.EV_ABS not in keyboard['capabilities'], (
+            'tine-keyboard must not advertise absolute axes'
+        )
+
+    def test_keyboard_device_has_no_input_prop_direct(self, monkeypatch):
+        from evdev import ecodes
+
+        _, keyboard = self._captured_pair(monkeypatch)
+        assert ecodes.INPUT_PROP_DIRECT not in (keyboard['input_props'] or [])
+
+    def test_devices_have_unique_vendor_product(self, monkeypatch):
+        """Default evdev 0x0001:0x0001 causes libinput group collisions.
+
+        Each tine device must set a non-default vendor/product ID and the
+        two devices must differ (so they can't accidentally collapse into
+        each other within libinput's grouping logic).
+        """
+        pointer, keyboard = self._captured_pair(monkeypatch)
+        assert pointer['vendor'] is not None and pointer['product'] is not None
+        assert keyboard['vendor'] is not None and keyboard['product'] is not None
+        assert pointer['vendor'] != 0x0001 or pointer['product'] != 0x0001
+        assert keyboard['vendor'] != 0x0001 or keyboard['product'] != 0x0001
+        assert (pointer['vendor'], pointer['product']) != (
+            keyboard['vendor'], keyboard['product'])
+
+    def test_inputd_creates_split_devices(self, monkeypatch):
+        """The daemon must create the same pointer + keyboard pair."""
+        from evdev import ecodes
+
+        captured = []
 
         class FakeDev:
             def close(self): pass
 
-        def fake_uinput_ctor(capabilities, name=None, input_props=None):
-            captured['capabilities'] = capabilities
+        def fake_uinput_ctor(capabilities, name=None, input_props=None,
+                             vendor=None, product=None, version=None):
+            captured.append({
+                'capabilities': capabilities, 'name': name,
+                'input_props': input_props,
+                'vendor': vendor, 'product': product,
+            })
             return FakeDev()
 
         import tine.inputd
         monkeypatch.setattr(tine.inputd, 'UInput', fake_uinput_ctor)
         import time
         monkeypatch.setattr(time, 'sleep', lambda _s: None)
-        tine.inputd._create_uinput()
+        pointer, keyboard = tine.inputd._create_devices()
 
-        key_caps = captured['capabilities'].get(ecodes.EV_KEY, [])
-        assert ecodes.BTN_TOUCH not in key_caps, (
-            'tine-input daemon must not advertise BTN_TOUCH — breaks Firefox clicks'
-        )
+        assert len(captured) == 2
+        # Pointer is created first
+        p_caps = captured[0]['capabilities']
+        k_caps = captured[1]['capabilities']
+        assert ecodes.BTN_TOUCH not in p_caps.get(ecodes.EV_KEY, [])
+        assert ecodes.BTN_TOUCH not in k_caps.get(ecodes.EV_KEY, [])
+        assert ecodes.EV_ABS in p_caps
+        assert ecodes.EV_ABS not in k_caps
+        p_keys = set(p_caps.get(ecodes.EV_KEY, []))
+        assert p_keys == {ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE}
+        # Unique, non-default IDs
+        assert (captured[0]['vendor'], captured[0]['product']) != (0x0001, 0x0001)
+        assert (captured[1]['vendor'], captured[1]['product']) != (0x0001, 0x0001)
+        assert ((captured[0]['vendor'], captured[0]['product'])
+                != (captured[1]['vendor'], captured[1]['product']))
 
 
 # ---------------------------------------------------------------------------
