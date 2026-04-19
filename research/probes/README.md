@@ -30,6 +30,7 @@ The probes give you a fourth, independent ground truth: actual screen pixels.
 | `bbox-probe.html` | Page for AT-SPI bbox / coord-math debugging. 8x8 solid-color markers at known CSS positions (`0,0`, `100,100`, ..., `50,600`) and six named interactive targets whose labels encode their own CSS coords (e.g. `tgtA 20,20`). JS dumps each target's `getBoundingClientRect` into `document.title`. |
 | `find_markers.py` | Scans a screenshot PNG for the bbox-probe markers (PIL). Tolerates Firefox dark-mode color inversion. Anchors on the CSS(0,0) marker and checks every other marker lies exactly where linearity predicts — the canonical linearity check. |
 | `atspi_bbox_probe.py` | Walks AT-SPI for a target app and dumps each `tgt*` (or `push button` with a name) with its `SCREEN`, `WINDOW`, and `PARENT` coord-type extents side by side. Also dumps the ancestor chain from one leaf up to the desktop so you can see the frame node and its reported origin. |
+| `coord_verify_cost.py` | Times the full `describe(ocr=True)` pipeline and reports wall-clock totals plus the `verify_atspi_coords` fraction, named-ref count, OCR detection count, and whether verification produced any `'false'` tag. Feeds the decision in brief-20260418-33wp — measurement (finding-20260419-4m11) showed verify is <0.05% of total describe time, so option 1 (always-on) was kept. |
 
 ## The ground-truth workflow
 
