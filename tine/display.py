@@ -70,7 +70,14 @@ def get_display_config():
 
 
 def _from_env():
-    """Read display config from env vars. Returns dict or None if all are missing."""
+    """Read display config from env vars. Returns dict or None.
+
+    All three of TINE_SCALE, TINE_PHYSICAL_WIDTH, TINE_PHYSICAL_HEIGHT must
+    be set to take this path. Partial setups (e.g. TINE_SCALE alone) return
+    None so the caller falls through to Mutter rather than silently filling
+    the missing values with hardcoded defaults — the same failure mode the
+    outer hard-fail is meant to eliminate.
+    """
     scale = os.environ.get('TINE_SCALE')
     width = os.environ.get('TINE_PHYSICAL_WIDTH')
     height = os.environ.get('TINE_PHYSICAL_HEIGHT')
@@ -78,11 +85,22 @@ def _from_env():
     if scale is None and width is None and height is None:
         return None
 
-    # If any are set, use them all (with defaults for missing ones)
+    if scale is None or width is None or height is None:
+        missing = [n for n, v in (
+            ('TINE_SCALE', scale),
+            ('TINE_PHYSICAL_WIDTH', width),
+            ('TINE_PHYSICAL_HEIGHT', height),
+        ) if v is None]
+        raise ValueError(
+            f'Partial TINE display env: missing {", ".join(missing)}. '
+            'Set all three or unset all three. Use TINE_DISPLAY_FALLBACK=WxH '
+            'for an opt-in fallback that only kicks in when Mutter also fails.'
+        )
+
     return {
-        'scale': float(scale) if scale is not None else 1.0,
-        'physical_width': int(width) if width is not None else 1920,
-        'physical_height': int(height) if height is not None else 1080,
+        'scale': float(scale),
+        'physical_width': int(width),
+        'physical_height': int(height),
     }
 
 
@@ -104,17 +122,29 @@ def _from_fallback_env():
     if raw is None:
         return None
 
-    m = re.fullmatch(r'(\d+)x(\d+)', raw.strip())
+    # re.ASCII: match only ASCII 0-9, not Unicode decimal digits like '１'.
+    # Consistent with cli.py's coord parsing, and avoids fullwidth-digit
+    # surprises. Dimension bounds match _extract_from_gvariant's sanity
+    # check (common range of desktop resolutions) so zero/degenerate
+    # values are rejected loudly instead of producing origin-only clicks.
+    m = re.fullmatch(r'([0-9]+)x([0-9]+)', raw.strip(), flags=re.ASCII)
     if m is None:
         raise ValueError(
             f'TINE_DISPLAY_FALLBACK={raw!r} is malformed. '
-            f"Expected 'WxH', e.g. '1920x1080'."
+            f"Expected 'WxH' with ASCII digits, e.g. '1920x1080'."
+        )
+
+    w, h = int(m.group(1)), int(m.group(2))
+    if not (640 <= w <= 7680 and 480 <= h <= 4320):
+        raise ValueError(
+            f'TINE_DISPLAY_FALLBACK={raw!r} has implausible dimensions. '
+            f'Expected width in [640, 7680] and height in [480, 4320].'
         )
 
     return {
         'scale': 1.0,
-        'physical_width': int(m.group(1)),
-        'physical_height': int(m.group(2)),
+        'physical_width': w,
+        'physical_height': h,
     }
 
 
@@ -229,6 +259,9 @@ def _extract_from_gvariant(text):
                 break
 
     if width is None or height is None:
-        return {'scale': scale, 'physical_width': 1920, 'physical_height': 1080}
+        # Mutter returned a scale but no parseable mode string. Don't
+        # silently fill 1920x1080 — return None so the outer function
+        # falls through to TINE_DISPLAY_FALLBACK or raises cleanly.
+        return None
 
     return {'scale': scale, 'physical_width': width, 'physical_height': height}

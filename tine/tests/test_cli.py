@@ -175,6 +175,99 @@ class TestTreeCommand:
         assert os.path.exists(ref_cache_path)
 
 
+class TestNoCoordSubcommandsDontRequireDisplayConfig:
+    """tree/windows/focus don't produce pixel coordinates, so they must
+    still work when display config resolution would fail. Regression
+    guard against re-introducing the eager get_display_config() call
+    at cli.main() startup."""
+
+    def _sabotage_display_detection(self, monkeypatch):
+        import subprocess as sp
+        import tine.display
+        monkeypatch.setattr(tine.display, '_cached_config', None)
+        for var in ('TINE_SCALE', 'TINE_PHYSICAL_WIDTH', 'TINE_PHYSICAL_HEIGHT',
+                    'TINE_DISPLAY_FALLBACK'):
+            monkeypatch.delenv(var, raising=False)
+
+        def fake_run(cmd, **kwargs):
+            raise FileNotFoundError('gdbus not found (simulated)')
+        monkeypatch.setattr(sp, 'run', fake_run)
+
+    def test_tree_works_without_display_config(self, monkeypatch, capsys, tmp_path):
+        self._sabotage_display_detection(monkeypatch)
+        monkeypatch.setenv('TINE_REF_CACHE', str(tmp_path / 'refs.json'))
+
+        raw_tree = {
+            'role': 'application', 'name': 'X',
+            'bbox': {'x': 0, 'y': 0, 'w': 100, 'h': 100},
+            'states': [], 'actions': [], 'children': [],
+        }
+        import tine.cli as cli_mod
+        monkeypatch.setattr(cli_mod, '_walk_atspi', lambda app=None: raw_tree)
+
+        cli_mod.main(['tree'])  # must not raise
+
+        assert 'application' in capsys.readouterr().out
+
+    def test_windows_works_without_display_config(self, monkeypatch, capsys):
+        self._sabotage_display_detection(monkeypatch)
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'list_windows',
+                            lambda: [{'title': 'X', 'x': 0, 'y': 0,
+                                      'width': 100, 'height': 100, 'focused': True}])
+
+        import tine.cli as cli_mod
+        cli_mod.main(['windows'])  # must not raise
+
+        assert 'X' in capsys.readouterr().out
+
+    def test_focus_works_without_display_config(self, monkeypatch):
+        self._sabotage_display_detection(monkeypatch)
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'list_windows',
+                            lambda: [{'title': 'Mozilla Firefox',
+                                      'wm_class': 'firefox',
+                                      'x': 0, 'y': 0, 'width': 800, 'height': 600,
+                                      'focused': False}])
+
+        import tine.cli as cli_mod
+        focus_calls = []
+        monkeypatch.setattr(cli_mod, '_focus_window',
+                            lambda w: focus_calls.append(w))
+
+        cli_mod.main(['focus', 'Firefox'])  # must not raise
+
+        assert len(focus_calls) == 1
+        assert focus_calls[0]['wm_class'] == 'firefox'
+
+    def test_screenshot_still_requires_display_config_when_scale_unset(self, monkeypatch):
+        """Negative case: screenshot without --scale still needs display
+        config for the scale default. Locks in that the lazy-load only
+        narrows, never removes, the dependency."""
+        self._sabotage_display_detection(monkeypatch)
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture', lambda output_path=None: '/tmp/x.png')
+
+        import tine.cli as cli_mod
+        with pytest.raises(RuntimeError, match='Display config unavailable'):
+            cli_mod.main(['screenshot'])
+
+    def test_screenshot_with_explicit_scale_bypasses_display_config(self, monkeypatch, capsys, tmp_path):
+        """User-supplied --scale means we don't need display detection."""
+        self._sabotage_display_detection(monkeypatch)
+
+        import tine.screenshot
+        monkeypatch.setattr(tine.screenshot, 'capture',
+                            lambda output_path=None: str(tmp_path / 'x.png'))
+        monkeypatch.setenv('TINE_REF_CACHE', str(tmp_path / 'refs.json'))
+
+        import tine.cli as cli_mod
+        cli_mod.main(['screenshot', '--scale', '1.5'])  # must not raise
+
+
 # ---------------------------------------------------------------------------
 # Argument parsing — screenshot
 # ---------------------------------------------------------------------------
