@@ -220,6 +220,9 @@ def _cmd_tree(args):
 
 def _cmd_screenshot(args):
     """Handle 'screenshot' subcommand."""
+    if args.scale is None:
+        args.scale = get_display_config()['scale']
+
     path = tine.screenshot.capture(output_path=args.output)
 
     cache = tine.refs.load_ref_cache(_ref_cache_path())
@@ -573,6 +576,9 @@ def _cmd_inputd(args):
 
 def _cmd_describe(args):
     """Handle 'describe' subcommand."""
+    if args.scale is None:
+        args.scale = get_display_config()['scale']
+
     try:
         result = tine.describe.describe(
             app=getattr(args, 'app', None),
@@ -599,7 +605,10 @@ def main(argv=None):
     """CLI entry point."""
     parser = argparse.ArgumentParser(prog='tine', description='AI agent desktop driver')
     subparsers = parser.add_subparsers(dest='command')
-    _default_scale = get_display_config()['scale']
+    # --scale default is resolved lazily inside the screenshot/describe
+    # handlers so that subcommands that don't touch pixel coordinates
+    # (tree, windows, focus, activate) still work in environments where
+    # display config is unavailable.
 
     # tree
     tree_parser = subparsers.add_parser('tree', help='Walk AT-SPI2 tree')
@@ -614,8 +623,8 @@ def main(argv=None):
                            help='Add labeled coordinate grid overlay. '
                                 'Optional COLSxROWS (default 5x3) sets the '
                                 'grid dimensions; every cell is fully on-screen.')
-    ss_parser.add_argument('--scale', type=float, default=_default_scale,
-                           help='Display scale factor')
+    ss_parser.add_argument('--scale', type=float, default=None,
+                           help='Display scale factor (default: detected)')
     ss_parser.add_argument('--ocr', action='store_true',
                            help='Run OCR on the screenshot and add ref_tN '
                                 'entries to the ref cache')
@@ -685,8 +694,8 @@ def main(argv=None):
     desc_parser.add_argument('--app', default=None, help='Filter to app name')
     desc_parser.add_argument('--annotate', action='store_true',
                              help='Add Set-of-Mark overlays')
-    desc_parser.add_argument('--scale', type=float, default=_default_scale,
-                             help='Display scale factor')
+    desc_parser.add_argument('--scale', type=float, default=None,
+                             help='Display scale factor (default: detected)')
     desc_parser.add_argument('--ocr', action='store_true',
                              help='Run OCR on the screenshot and include '
                                   'detected text regions as ref_tN entries')
