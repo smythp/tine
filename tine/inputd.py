@@ -158,12 +158,13 @@ def _handle_click(devices, cmd):
 
 def _handle_key(devices, cmd):
     _, keyboard = devices
+    from tine.input import _normalize_key_name
     keycodes, _, _, modifier_names, _, _ = _get_input_constants()
     combo_str = cmd.get('combo', '')
     if not combo_str:
         return {'ok': False, 'error': 'Missing combo'}
 
-    parts = [p.strip().lower() for p in combo_str.split('+')]
+    parts = [_normalize_key_name(p) for p in combo_str.split('+')]
     parts = [p for p in parts if p]
 
     if not parts:

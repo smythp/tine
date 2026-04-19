@@ -895,3 +895,193 @@ class TestKeyCombo:
 
         key_combo('enter')
         assert fake_uinput.syn_count >= 1
+
+
+# -----------------------------------------------------------------------------
+# Key name normalization — accept X11/XKB keysym forms
+# (brief-20260418-x7yz)
+# -----------------------------------------------------------------------------
+
+
+class TestNormalizeKeyName:
+    """tine.input._normalize_key_name — X11/XKB keysym acceptance."""
+
+    def test_canonical_name_unchanged(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('pagedown') == 'pagedown'
+        assert _normalize_key_name('backspace') == 'backspace'
+        assert _normalize_key_name('ctrl') == 'ctrl'
+
+    def test_strips_underscore(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('Page_Down') == 'pagedown'
+        assert _normalize_key_name('Page_Up') == 'pageup'
+        assert _normalize_key_name('Caps_Lock') == 'capslock'
+        assert _normalize_key_name('Back_Space') == 'backspace'
+
+    def test_camelcase_normalizes(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('PageDown') == 'pagedown'
+        assert _normalize_key_name('BackSpace') == 'backspace'
+        assert _normalize_key_name('CapsLock') == 'capslock'
+
+    def test_strips_spaces_and_dashes(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('Page Down') == 'pagedown'
+        assert _normalize_key_name('page-down') == 'pagedown'
+
+    def test_lr_modifier_aliases(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('Left_Shift') == 'lshift'
+        assert _normalize_key_name('Right_Shift') == 'rshift'
+        assert _normalize_key_name('Shift_L') == 'lshift'
+        assert _normalize_key_name('Shift_R') == 'rshift'
+        assert _normalize_key_name('Control_L') == 'lctrl'
+        assert _normalize_key_name('Control_R') == 'rctrl'
+        assert _normalize_key_name('Alt_L') == 'lalt'
+        assert _normalize_key_name('Alt_R') == 'ralt'
+
+    def test_bare_control_maps_to_ctrl(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('Control') == 'ctrl'
+        assert _normalize_key_name('CONTROL') == 'ctrl'
+
+    def test_common_abbreviations(self):
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('Del') == 'delete'
+        assert _normalize_key_name('Ins') == 'insert'
+
+    def test_unknown_returns_normalized_form(self):
+        """Caller does the final KEYCODES lookup; normalizer just prepares it."""
+        from tine.input import _normalize_key_name
+
+        assert _normalize_key_name('Nonexistent_Key') == 'nonexistentkey'
+
+
+class TestKeyComboXkbAliases:
+    """key_combo accepts X11/XKB keysym names that were previously rejected."""
+
+    def test_page_down_xkb_form(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Page_Down')
+        assert (109, 1) in fake_uinput.key_writes  # KEY_PAGEDOWN
+
+    def test_page_down_camelcase(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('PageDown')
+        assert (109, 1) in fake_uinput.key_writes
+
+    def test_backspace_xkb_form(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('BackSpace')
+        assert (14, 1) in fake_uinput.key_writes  # KEY_BACKSPACE
+
+    def test_caps_lock_xkb_form(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Caps_Lock')
+        assert (58, 1) in fake_uinput.key_writes  # KEY_CAPSLOCK
+
+    def test_left_shift_maps_to_lshift(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Left_Shift')
+        assert (42, 1) in fake_uinput.key_writes  # KEY_LEFTSHIFT
+
+    def test_right_shift_maps_to_rshift(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Right_Shift')
+        assert (54, 1) in fake_uinput.key_writes  # KEY_RIGHTSHIFT
+
+    def test_shift_l_xkb_keysym(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Shift_L')
+        assert (42, 1) in fake_uinput.key_writes
+
+    def test_control_l_xkb_keysym(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Control_L')
+        assert (29, 1) in fake_uinput.key_writes  # KEY_LEFTCTRL
+
+    def test_alias_works_inside_combo(self, fake_uinput, default_scale):
+        """XKB aliases must work when combined with modifiers."""
+        from tine.input import key_combo
+
+        key_combo('Ctrl+Page_Down')
+        assert (29, 1) in fake_uinput.key_writes   # ctrl
+        assert (109, 1) in fake_uinput.key_writes  # pagedown
+
+    def test_genuinely_unknown_still_raises(self, fake_uinput, default_scale):
+        """Normalization must not mask truly unknown keys."""
+        from tine.input import key_combo
+
+        with pytest.raises(ValueError, match='Unknown key'):
+            key_combo('Not_A_Real_Key')
+
+    def test_daemon_receives_normalized_combo(self, fake_uinput, default_scale, monkeypatch):
+        """key_combo forwards normalized combo to daemon so daemon parsers
+        downstream don't need to repeat the X11/XKB translation."""
+        from tine import input as tine_input
+
+        captured = {}
+
+        def fake_daemon(cmd):
+            captured['cmd'] = cmd
+            return {'ok': True}
+
+        monkeypatch.setattr(tine_input, '_try_daemon', fake_daemon)
+        tine_input.key_combo('Ctrl+Page_Down')
+
+        assert captured['cmd']['action'] == 'key'
+        assert captured['cmd']['combo'] == 'ctrl+pagedown'
+
+    def test_super_l_maps_to_super(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Super_L')
+        assert (125, 1) in fake_uinput.key_writes  # KEY_LEFTMETA
+
+    def test_super_r_maps_to_super(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Super_R')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_meta_l_maps_to_meta(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Meta_L')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_meta_r_maps_to_meta(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Meta_R')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_super_left_prefix_form(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Left_Super')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_super_combo_with_letter(self, fake_uinput, default_scale):
+        """Super+A (GNOME overview) via XKB Super_L form."""
+        from tine.input import key_combo
+
+        key_combo('Super_L+a')
+        assert (125, 1) in fake_uinput.key_writes  # super
+        assert (30, 1) in fake_uinput.key_writes   # a
