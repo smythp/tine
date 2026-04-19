@@ -13,8 +13,6 @@ The RapidOCR engine is created lazily on first call and cached for the
 process lifetime. Model load is ~2s; inference is ~2s per 1080p frame on CPU.
 """
 
-import os
-
 DEFAULT_MIN_CONFIDENCE = 0.8
 
 _engine = None
@@ -171,13 +169,6 @@ def normalize_text(s):
 
 COORD_VERIFY_TOLERANCE = 20
 
-COORD_VERIFY_FASTPATH_ENV = 'TINE_COORD_VERIFY_FASTPATH'
-
-
-def _fastpath_enabled():
-    val = os.environ.get(COORD_VERIFY_FASTPATH_ENV, '1').strip().lower()
-    return val not in ('0', 'false', 'no', 'off')
-
 
 def _abs_bbox_center(bbox, window_offset):
     """Absolute pixel center of an AT-SPI2 bbox, honouring coord space."""
@@ -191,88 +182,8 @@ def _abs_bbox_center(bbox, window_offset):
     return (x + w // 2, y + h // 2)
 
 
-def _collect_named_atspi_refs(atspi_cache, window_offset):
-    """Pull the named, positively-sized, AT-SPI-side refs out of a cache.
-
-    Returns a list of tuples ``(ref_id, norm, center, entry)`` — everything
-    the verification pairing loop needs, with the same exclusion rules as
-    the original implementation (skip ``_app``, ``ref_t*``, nameless refs,
-    zero-sized bboxes, refs whose normalized name is empty).
-    """
-    named = []
-    for ref_id, entry in atspi_cache.items():
-        if ref_id == '_app' or not isinstance(entry, dict):
-            continue
-        if ref_id.startswith('ref_t'):
-            continue
-        name = entry.get('name', '')
-        bbox = entry.get('bbox')
-        if not name or not bbox:
-            continue
-        w = bbox.get('w', 0)
-        h = bbox.get('h', 0)
-        if w <= 0 or h <= 0:
-            continue
-        norm = normalize_text(name)
-        if not norm:
-            continue
-        center = _abs_bbox_center(bbox, window_offset)
-        named.append((ref_id, norm, center, entry))
-    return named
-
-
-def _collect_valid_detections(text_detections):
-    """Pull detections with a non-empty normalized name and positive bbox.
-
-    Returns ``(det, norm, center)`` tuples.
-    """
-    valid = []
-    for det in text_detections:
-        norm = normalize_text(det.get('text', ''))
-        if not norm:
-            continue
-        bbox = det.get('bbox') or {}
-        if bbox.get('w', 0) <= 0 or bbox.get('h', 0) <= 0:
-            continue
-        center = _bbox_center(bbox)
-        valid.append((det, norm, center))
-    return valid
-
-
-def _has_pair_possibility(named_refs, detections):
-    """Does any named AT-SPI ref share a normalized name with any detection?
-
-    verify_atspi_coords can only produce a ``'true'`` or ``'false'`` tag
-    when at least one name-match exists; without one, every touched ref
-    would degrade to ``'unknown'``. This predicate is the safety gate
-    for the fast-path: when it returns ``False`` we can skip the
-    pairing loop outright.
-
-    A purely spatial check (bbox intersection) is tempting but unsafe —
-    it would miss Firefox-style bugs where AT-SPI claims a ref is at
-    position A, OCR finds the same name at position B, and neither
-    bbox intersects the other. That is exactly the case verification
-    is meant to catch.
-    """
-    det_names = {norm for (_d, norm, _c) in detections}
-    if not det_names:
-        return False
-    for (_ref_id, norm, _c, _entry) in named_refs:
-        if norm in det_names:
-            return True
-    return False
-
-
-def _mark_named_refs_unknown(named_refs):
-    disputes = {}
-    for ref_id, _norm, _center, entry in named_refs:
-        entry['coord_verified'] = 'unknown'
-        disputes[ref_id] = None
-    return disputes
-
-
 def verify_atspi_coords(atspi_cache, text_detections, window_offset=(0, 0),
-                        tolerance=COORD_VERIFY_TOLERANCE, fastpath=None):
+                        tolerance=COORD_VERIFY_TOLERANCE):
     """Cross-check named AT-SPI2 refs against OCR detections.
 
     For each named AT-SPI2 ref, look for OCR detections with the same
@@ -297,19 +208,6 @@ def verify_atspi_coords(atspi_cache, text_detections, window_offset=(0, 0),
             bboxes.
         tolerance: Maximum center-to-center distance (pixels) for a
             matched pair to count as ``true``.
-        fastpath: Override the fast-path gate. ``None`` (default) reads
-            ``TINE_COORD_VERIFY_FASTPATH`` — unset / ``1`` / ``true``
-            keeps the fast-path on, ``0`` / ``false`` / ``no`` / ``off``
-            forces the full pairing pass. Pass an explicit ``True``
-            or ``False`` from tests / probes.
-
-    Fast-path: when no named AT-SPI ref shares a normalized name with any
-    OCR detection, the full pairing loop can only tag refs ``'unknown'``
-    — the same state this function returns directly. The fast-path is
-    behavioral-equivalent on those pages but avoids the bucket-and-sort
-    loop. ``False``/``True`` tags are impossible without a name match,
-    so no dispute info is lost. See ``_has_pair_possibility`` for the
-    rationale against a spatial-overlap gate.
 
     Side effect: each disputed detection also gets a
     ``_disputed_ref_id`` field set to the AT-SPI2 ref id it disputes.
@@ -323,21 +221,35 @@ def verify_atspi_coords(atspi_cache, text_detections, window_offset=(0, 0),
         ``None`` when there's no dispute. The ref id of a dispute can
         be read from the detection's ``_disputed_ref_id`` field.
     """
-    named_refs = _collect_named_atspi_refs(atspi_cache, window_offset)
-    detections = _collect_valid_detections(text_detections)
-
-    if fastpath is None:
-        fastpath = _fastpath_enabled()
-
-    if fastpath and not _has_pair_possibility(named_refs, detections):
-        return _mark_named_refs_unknown(named_refs)
-
     refs_by_name = {}
-    for ref_id, norm, center, entry in named_refs:
+    for ref_id, entry in atspi_cache.items():
+        if ref_id == '_app' or not isinstance(entry, dict):
+            continue
+        if ref_id.startswith('ref_t'):
+            continue
+        name = entry.get('name', '')
+        bbox = entry.get('bbox')
+        if not name or not bbox:
+            continue
+        w = bbox.get('w', 0)
+        h = bbox.get('h', 0)
+        if w <= 0 or h <= 0:
+            continue
+        norm = normalize_text(name)
+        if not norm:
+            continue
+        center = _abs_bbox_center(bbox, window_offset)
         refs_by_name.setdefault(norm, []).append((ref_id, center, entry))
 
     dets_by_text = {}
-    for det, norm, center in detections:
+    for det in text_detections:
+        norm = normalize_text(det.get('text', ''))
+        if not norm:
+            continue
+        bbox = det.get('bbox') or {}
+        if bbox.get('w', 0) <= 0 or bbox.get('h', 0) <= 0:
+            continue
+        center = _bbox_center(bbox)
         dets_by_text.setdefault(norm, []).append((det, center))
 
     disputes = {}
