@@ -170,6 +170,13 @@ KEY_ALIASES = {
     'controlr': 'rctrl', 'ctrlr': 'rctrl',
     'leftalt': 'lalt', 'altleft': 'lalt', 'altl': 'lalt',
     'rightalt': 'ralt', 'altright': 'ralt', 'altr': 'ralt',
+    # Super/Meta share the same keycode (LEFTMETA=125), so L and R both
+    # map to the canonical 'super' / 'meta'. Extending KEYCODES with
+    # rsuper/rmeta for KEY_RIGHTMETA=126 is out of scope — alias-only.
+    'leftsuper': 'super', 'superleft': 'super', 'superl': 'super',
+    'rightsuper': 'super', 'superright': 'super', 'superr': 'super',
+    'leftmeta': 'meta', 'metaleft': 'meta', 'metal': 'meta',
+    'rightmeta': 'meta', 'metaright': 'meta', 'metar': 'meta',
     # Bare XKB keysym names that don't match our short forms
     'control': 'ctrl',
     # Common abbreviations

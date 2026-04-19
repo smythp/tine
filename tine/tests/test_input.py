@@ -1047,3 +1047,41 @@ class TestKeyComboXkbAliases:
 
         assert captured['cmd']['action'] == 'key'
         assert captured['cmd']['combo'] == 'ctrl+pagedown'
+
+    def test_super_l_maps_to_super(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Super_L')
+        assert (125, 1) in fake_uinput.key_writes  # KEY_LEFTMETA
+
+    def test_super_r_maps_to_super(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Super_R')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_meta_l_maps_to_meta(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Meta_L')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_meta_r_maps_to_meta(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Meta_R')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_super_left_prefix_form(self, fake_uinput, default_scale):
+        from tine.input import key_combo
+
+        key_combo('Left_Super')
+        assert (125, 1) in fake_uinput.key_writes
+
+    def test_super_combo_with_letter(self, fake_uinput, default_scale):
+        """Super+A (GNOME overview) via XKB Super_L form."""
+        from tine.input import key_combo
+
+        key_combo('Super_L+a')
+        assert (125, 1) in fake_uinput.key_writes  # super
+        assert (30, 1) in fake_uinput.key_writes   # a
