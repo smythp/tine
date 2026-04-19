@@ -151,6 +151,54 @@ for _shifted_char, _base_name in SHIFT_CHARS.items():
 MODIFIER_NAMES = {'ctrl', 'lctrl', 'rctrl', 'shift', 'lshift', 'rshift',
                    'alt', 'lalt', 'ralt', 'super', 'meta'}
 
+# Aliases for X11/XKB-style keysym names that don't match canonical
+# KEYCODES keys after simple normalization. Every agent has Page_Down,
+# BackSpace, Control_L memorized from XKB; a wrong guess should not blow
+# up a chained command. Keys are post-normalization (lowercase,
+# underscores/spaces/dashes stripped). Values are canonical KEYCODES keys.
+KEY_ALIASES = {
+    # L/R modifiers — XKB uses Shift_L/R, we use lshift/rshift.
+    # Both orderings (prefix and suffix) accepted so Left_Shift and
+    # Shift_L normalize the same way.
+    'leftshift': 'lshift', 'shiftleft': 'lshift', 'shiftl': 'lshift',
+    'rightshift': 'rshift', 'shiftright': 'rshift', 'shiftr': 'rshift',
+    'leftcontrol': 'lctrl', 'controlleft': 'lctrl',
+    'leftctrl': 'lctrl', 'ctrlleft': 'lctrl',
+    'controll': 'lctrl', 'ctrll': 'lctrl',
+    'rightcontrol': 'rctrl', 'controlright': 'rctrl',
+    'rightctrl': 'rctrl', 'ctrlright': 'rctrl',
+    'controlr': 'rctrl', 'ctrlr': 'rctrl',
+    'leftalt': 'lalt', 'altleft': 'lalt', 'altl': 'lalt',
+    'rightalt': 'ralt', 'altright': 'ralt', 'altr': 'ralt',
+    # Bare XKB keysym names that don't match our short forms
+    'control': 'ctrl',
+    # Common abbreviations
+    'del': 'delete',
+    'ins': 'insert',
+}
+
+
+def _normalize_key_name(name):
+    """Normalize a key name for lookup in KEYCODES.
+
+    Accepts X11/XKB keysym forms (Page_Down, BackSpace, Control_L, Caps_Lock)
+    and our canonical short forms (pagedown, backspace, lctrl, capslock).
+    Lowercases, strips underscores/spaces/dashes, then consults KEY_ALIASES
+    for semantic renames where the normalized form still doesn't match a
+    KEYCODES key. The caller does the final KEYCODES lookup and emits a
+    clear error on genuinely unknown keys.
+
+    Args:
+        name: Raw key name as provided by the user.
+
+    Returns:
+        Normalized name suitable for direct KEYCODES lookup.
+    """
+    stripped = name.strip().lower()
+    for char in '_- ':
+        stripped = stripped.replace(char, '')
+    return KEY_ALIASES.get(stripped, stripped)
+
 # Cached UInput devices — created lazily on first use.
 # Split into pointer (ABS + mouse buttons) and keyboard (keys) devices so
 # libinput classifies each cleanly. See module docstring.
@@ -484,7 +532,7 @@ def key_combo(combo_str):
     if not isinstance(combo_str, str):
         raise ValueError(f'combo_str must be a string, got {type(combo_str).__name__}')
 
-    parts = [p.strip().lower() for p in combo_str.split('+')]
+    parts = [_normalize_key_name(p) for p in combo_str.split('+')]
     parts = [p for p in parts if p]  # filter empty segments from 'ctrl+' or '+'
 
     if not parts:
@@ -495,7 +543,9 @@ def key_combo(combo_str):
         if part not in KEYCODES:
             raise ValueError(f'Unknown key: {part}. Known keys: {", ".join(sorted(KEYCODES))}')
 
-    resp = _try_daemon({'action': 'key', 'combo': combo_str})
+    # Send the already-normalized combo so the daemon receives canonical
+    # keycode names regardless of which X11/XKB alias the caller used.
+    resp = _try_daemon({'action': 'key', 'combo': '+'.join(parts)})
     if resp is not None:
         if not resp.get('ok'):
             error = resp.get('error', 'daemon key failed')
