@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>focus-race-probe 0 0</title>
+<style>
+  body { font-family: sans-serif; padding: 2em; }
+  #input { width: 40em; font-size: 18px; padding: 0.4em; }
+  pre { background: #eee; padding: 0.6em; }
+</style>
+</head>
+<body>
+<h1>focus-race-probe</h1>
+<p>
+  Used to measure the race between <code>extension.FocusWindow</code> returning
+  and a subsequent <code>tine key</code> / <code>tine type</code> actually being
+  delivered to this window.
+</p>
+<p>Focus another app before running tine. Then on the driver machine:</p>
+<pre>
+ssh archgnome 'source /tmp/tine-env.sh &amp;&amp; \
+    tine focus firefox &amp;&amp; \
+    tine type ABC'
+ssh archgnome 'source /tmp/tine-env.sh &amp;&amp; tine windows | grep focus-race'
+</pre>
+<p>
+  The input field below captures every <code>keydown</code>. The page writes a
+  monotonic counter + the concatenated keys received into
+  <code>document.title</code> so the driver can read the tail over
+  <code>tine windows</code>.
+</p>
+<p>
+  Expected (no race): title ends with <code>ABC</code> — all three keystrokes
+  reached Firefox after focus.<br>
+  Race (focus not yet delivered): title ends with <code>''</code> or a prefix
+  like <code>'C'</code> — early keys were lost because
+  <code>wl_keyboard.enter</code> hadn't fired yet for this window.
+</p>
+<input id="input" placeholder="Focus lands here after tine focus firefox">
+
+<script>
+  const field = document.getElementById('input');
+  let counter = 0;
+  let seen = '';
+  function update() {
+    counter += 1;
+    document.title = `focus-race-probe ${counter} ${seen}`;
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key.length === 1) seen += e.key;
+    else seen += `<${e.key}>`;
+    update();
+  });
+  window.addEventListener('focus', () => {
+    seen += '[focus]';
+    update();
+  });
+  window.addEventListener('blur', () => {
+    seen += '[blur]';
+    update();
+  });
+  // Auto-focus input so typing goes there even without click.
+  field.focus();
+  update();
+</script>
+</body>
+</html>
