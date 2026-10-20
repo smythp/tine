@@ -1,0 +1,39 @@
+version: 1
+checks:
+  test-3-11:
+    description: Unit tests on Python 3.11. evdev builds from source, so the check needs a compiler and kernel headers.
+    environment:
+      packages: [python-3.11, python-3.11-dev, py3.11-pip, gcc, linux-headers]
+    script: |
+      python3.11 -m venv /var/tmp/venv
+      . /var/tmp/venv/bin/activate
+      pip install 'evdev>=1.6' 'Pillow>=10.0' 'pytest>=7.4' 'pytest-cov>=4.1'
+      pip install --no-deps -e .
+      pytest -v
+    network:
+      egress: [pypi.org, files.pythonhosted.org]
+  test-3-12:
+    description: Unit tests on Python 3.12.
+    environment:
+      packages: [python-3.12, python-3.12-dev, py3.12-pip, gcc, linux-headers]
+    script: |
+      python3.12 -m venv /var/tmp/venv
+      . /var/tmp/venv/bin/activate
+      pip install 'evdev>=1.6' 'Pillow>=10.0' 'pytest>=7.4' 'pytest-cov>=4.1'
+      pip install --no-deps -e .
+      pytest -v
+    network:
+      egress: [pypi.org, files.pythonhosted.org]
+  build:
+    description: pyproject.toml parses, and the sdist and wheel build.
+    environment:
+      packages: [python-3.12, py3.12-pip]
+    script: |
+      python3.12 -c "import tomllib; tomllib.load(open('pyproject.toml','rb'))"
+      python3.12 -m venv /var/tmp/venv
+      . /var/tmp/venv/bin/activate
+      pip install build
+      python -m build --sdist --wheel
+      ls -la dist/
+    network:
+      egress: [pypi.org, files.pythonhosted.org]
