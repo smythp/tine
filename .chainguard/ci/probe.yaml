@@ -1,0 +1,29 @@
+version: 1
+checks:
+  probe-deny:
+    description: Temporary probe. Reaches a host that isn't on the allowlist, under the default deny policy.
+    environment:
+      packages: [curl]
+    script: |
+      echo "allowed host:"; curl -sS -m 15 -o /dev/null -w '%{http_code}\n' https://pypi.org/simple/
+      echo "off-list host:"; curl -sS -m 15 -o /dev/null -w '%{http_code}\n' https://example.com/
+    network:
+      egress: [pypi.org]
+  probe-destroy:
+    description: Temporary probe. The same off-list call under policy destroy.
+    advisory: true
+    environment:
+      packages: [curl]
+    script: |
+      echo "off-list host:"; curl -sS -m 15 -o /dev/null -w '%{http_code}\n' https://example.com/
+      echo "still running after the off-list connection"
+    network:
+      egress: [pypi.org]
+      policy: destroy
+  probe-nonet:
+    description: Temporary probe. No network key, so no network.
+    advisory: true
+    environment:
+      packages: [curl]
+    script: |
+      echo "pypi with no network:"; curl -sS -m 15 -o /dev/null -w '%{http_code}\n' https://pypi.org/simple/
